@@ -13,7 +13,7 @@ const Bank = (function(){
   function normalize(data){
     if(!data || !Array.isArray(data.subjects) || !Array.isArray(data.questions)) return null;
     const subjects = data.subjects.filter(s=>s && s.id && s.name).map(s=>({
-      id:s.id, name:s.name, short:s.short || s.name, icon:s.icon || 'book', color:s.color || '#1C5FB0'
+      id:s.id, name:s.name, short:s.short || s.name, icon:s.icon || 'book', color:s.color || '#1C5FB0', exam_date:s.exam_date || null
     }));
     const questions = data.questions.filter(q=>q && q.id && q.subject && Array.isArray(q.options) && q.options.length >= 2).map(q=>{
       const out = { id:q.id, subject:q.subject, exam:q.exam, text:q.text, options:q.options.slice(), correct:Number(q.correct) };
@@ -31,7 +31,7 @@ const Bank = (function(){
     replaceInPlace(QUESTIONS, n.questions);
     return true;
   }
-  function signature(){ return QUESTIONS.length + '|' + QUESTIONS.map(q=>q.id + ':' + q.correct + ':' + (q.u?1:0) + ':' + q.text.length).join(',') + '|' + SUBJECTS.map(s=>s.id+s.name).join(','); }
+  function signature(){ return QUESTIONS.length + '|' + QUESTIONS.map(q=>q.id + ':' + q.correct + ':' + (q.u?1:0) + ':' + q.text.length).join(',') + '|' + SUBJECTS.map(s=>s.id+s.name+(s.exam_date||'')).join(','); }
 
   // Paso síncrono, antes de que arranque la app: usa la copia del dispositivo si existe
   function applyCached(){
@@ -46,7 +46,7 @@ const Bank = (function(){
     try{
       const headers = { apikey: SUPABASE_KEY };
       const [sr, qr] = await Promise.all([
-        fetch(SUPABASE_URL + '/rest/v1/subjects?select=id,name,short,icon,color&order=sort', { headers }),
+        fetch(SUPABASE_URL + '/rest/v1/subjects?select=id,name,short,icon,color,exam_date&order=sort', { headers }),
         fetch(SUPABASE_URL + '/rest/v1/questions?select=id,subject,exam,text,options,correct,unverified&order=sort&limit=5000', { headers })
       ]);
       if(!sr.ok || !qr.ok) return;

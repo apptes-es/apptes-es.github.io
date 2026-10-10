@@ -644,6 +644,9 @@ function todayStart(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
 function parseDay(str){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str || ''); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; }
 function daysUntil(str){ const d = parseDay(str); return d ? Math.round((d - todayStart()) / 86400000) : null; }
 function formatDay(str){ const d = parseDay(str); return d ? d.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'}) : ''; }
+// Fecha del examen: la que ponga el alumno o, si no, la oficial de la asignatura (Supabase)
+// Fecha oficial del examen, igual para todos (se gestiona en Supabase y no se puede cambiar desde la app)
+function examDateOf(subjectId){ return getSubject(subjectId).exam_date || ''; }
 function setExamDate(subjectId, value){
   const dates = loadExamDates();
   if(value) dates[subjectId] = value; else delete dates[subjectId];
@@ -653,7 +656,7 @@ function setExamDate(subjectId, value){
 function clearExamDate(subjectId){ setExamDate(subjectId, ''); }
 // Plan: ver cada pregunta no dominada al menos dos veces antes del examen
 function examPlan(subjectId){
-  const date = loadExamDates()[subjectId];
+  const date = examDateOf(subjectId);
   const days = daysUntil(date);
   if(days === null || days < 0) return null;
   const qs = questionsOf(subjectId);
@@ -706,21 +709,17 @@ function nextExamCardHtml(){
 }
 // Bloque de fecha de examen en la pantalla de la asignatura
 function examDateBlockHtml(subjectId){
-  const date = loadExamDates()[subjectId] || '';
+  const date = examDateOf(subjectId);
+  if(!date) return '';
   const plan = examPlan(subjectId);
-  const past = date && !plan;
   return `<div class="section-label">Fecha del examen</div>
   <div class="exam-date-card">
-    <label class="ed-field" for="examDate-${subjectId}"><span>${icon('clock',15)} Día del examen</span>
-      <input type="date" id="examDate-${subjectId}" value="${escapeHtml(date)}" data-change="setExamDate" data-args='["${subjectId}"]'>
-    </label>
+    <div class="ed-field"><span>${icon('clock',15)} ${escapeHtml(formatDay(date))}</span></div>
     ${plan ? `<div class="ed-plan">
         <b>${examCountdownLabel(plan.days)}</b>
         <div class="ne-plan">${planDotsHtml(plan)} <span>${escapeHtml(planText(plan))}</span></div>
         <span class="ed-hint">Recomendación: ${plan.perDay} ${plan.perDay === 1 ? 'test' : 'tests'} al día para ver dos veces cada pregunta que aún no dominas.</span>
-      </div>` : past ? `<div class="ed-plan"><span class="ed-hint">Ese examen ya pasó. Pon la fecha del siguiente o bórrala.</span></div>`
-      : `<span class="ed-hint">Pon la fecha y te diré cuántos tests hacer cada día.</span>`}
-    ${date ? `<button class="acc-link ed-clear" data-action="clearExamDate" data-args='["${subjectId}"]'>Quitar fecha</button>` : ''}
+      </div>` : `<div class="ed-plan"><span class="ed-hint">Este examen ya se ha celebrado.</span></div>`}
   </div>`;
 }
 

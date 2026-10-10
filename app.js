@@ -274,7 +274,8 @@ function failedIdsOf(subjectId){
   return ids.filter(id=>{ const q = findQuestionById(id); return q && q.subject === subjectId; });
 }
 function updateFailedBank(){
-  const failed = new Set(loadFailedIds());
+  // Se parte de lo guardado sin filtrar: si el banco aún no ha cargado alguna pregunta, no se pierde su id
+  const failed = new Set(safeGetJSON(FAILED_KEY, []));
   currentTest.questions.forEach((q,i)=>{
     if(currentTest.answers[i] === q.correct) failed.delete(q.id);
     else failed.add(q.id);
@@ -638,8 +639,6 @@ function timedToggleHtml(){
 }
 
 /* ---------------- FECHAS DE EXAMEN Y PLAN DIARIO ---------------- */
-const EXAM_DATES_KEY = 'tes_exam_dates_v1';
-function loadExamDates(){ const v = safeGetJSON(EXAM_DATES_KEY, {}); return (v && typeof v === 'object') ? v : {}; }
 function todayStart(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
 function parseDay(str){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str || ''); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; }
 function daysUntil(str){ const d = parseDay(str); return d ? Math.round((d - todayStart()) / 86400000) : null; }
@@ -647,13 +646,6 @@ function formatDay(str){ const d = parseDay(str); return d ? d.toLocaleDateStrin
 // Fecha del examen: la que ponga el alumno o, si no, la oficial de la asignatura (Supabase)
 // Fecha oficial del examen, igual para todos (se gestiona en Supabase y no se puede cambiar desde la app)
 function examDateOf(subjectId){ return getSubject(subjectId).exam_date || ''; }
-function setExamDate(subjectId, value){
-  const dates = loadExamDates();
-  if(value) dates[subjectId] = value; else delete dates[subjectId];
-  safeSetJSON(EXAM_DATES_KEY, dates);
-  renderSubject(subjectId);
-}
-function clearExamDate(subjectId){ setExamDate(subjectId, ''); }
 // Plan: ver cada pregunta no dominada al menos dos veces antes del examen
 function examPlan(subjectId){
   const date = examDateOf(subjectId);
@@ -1166,11 +1158,8 @@ function animateScoreCount(target){
 
 /* ---------------- EVENTOS (delegación, sin onclick en el HTML) ---------------- */
 const ACTIONS = {
-  setExamDate,
-  clearExamDate,
   installApp,
   dismissInstall,
-  cloudToggleRanking,
   cloudSetRankName,
   openAccount,
   cloudView,

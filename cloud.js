@@ -4,13 +4,12 @@
    se sube a la nube y se descarga en cualquier dispositivo. Sin librerías: solo fetch. */
 const SUPABASE_URL = 'https://mqdzwszearfsbracdybq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_xvIkndYAPPAwVbIjMdk5ag_BeEYkTMs'; // clave pública (segura en el navegador gracias a RLS)
-const SITE_URL = 'https://apptes-es.github.io/';
 const SESSION_KEY = 'tes_session_v1';      // no se sincroniza
 const DEVICE_MODE_KEY = 'tes_device_mode_v1'; // 'user' si alguna vez entró con cuenta aquí, 'guest' si eligió invitado
 const LOCAL_STAMP_KEY = 'tes_local_updated_v1';
 const SYNC_KEYS = [
   'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
-  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1', 'tes_exam_dates_v1'
+  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1'
 ];
 const SCORE_QUEUE_KEY = 'tes_score_queue_v1'; // puntos pendientes de subir al ranking
 
@@ -21,7 +20,7 @@ const Cloud = (function(){
   let pushTimer = null;
   let applyingRemote = false;
   let accountMsg = null;     // {type:'ok'|'error', text}
-  let accountView = 'login'; // login | signup | forgot | recovery
+  let accountView = 'login'; // login | signup
 
   /* ---------- HTTP ---------- */
   async function api(path, opts){
@@ -155,10 +154,15 @@ const Cloud = (function(){
       let q = Store.get(SCORE_QUEUE_KEY, []);
       while(q.length){
         const e = q[0];
+        try{
         await api('/rest/v1/scores', { method:'POST', headers:{ Prefer:'return=minimal' }, body:{
           user_id: session.user.id, subject: e.subject || null, mode: e.mode || null,
           correct: Math.max(0, Math.min(200, e.correct|0)), total: Math.max(1, Math.min(200, e.total|0)),
           points: Math.max(0, Math.min(260, e.points|0)) } });
+        }catch(err){
+          // Rechazado por la base de datos (límite diario, datos no válidos): se descarta para no reintentarlo siempre
+          if(!(err.status >= 400 && err.status < 500) || err.status === 401) throw err;
+        }
         q = q.slice(1);
         Store.set(SCORE_QUEUE_KEY, q);
       }
@@ -246,41 +250,17 @@ const Cloud = (function(){
     await pull();
   }
   async function signup(email, password, name){
-    const d = await api('/auth/v1/signup?redirect_to=' + encodeURIComponent(SITE_URL), { method:'POST', auth:false,
+    const d = await api('/auth/v1/signup', { method:'POST', auth:false,
       body:{ email, password, data:{ display_name: name } } });
     if(d && d.access_token){ saveSession(fromTokenResponse(d)); await pull(); return 'in'; }
-    return 'confirm';
-  }
-  async function forgot(email){
-    await api('/auth/v1/recover?redirect_to=' + encodeURIComponent(SITE_URL), { method:'POST', auth:false, body:{ email } });
-  }
-  async function setNewPassword(password){
-    await ensureFreshToken();
-    await api('/auth/v1/user', { method:'PUT', body:{ password } });
+    // Sin confirmación por email, si no llega sesión es que ese email ya estaba registrado
+    return 'exists';
   }
   async function logout(){
     if(pushTimer) await push(true);
     try{ await api('/auth/v1/logout', { method:'POST' }); }catch(e){}
     saveSession(null);
     setStatus('idle');
-  }
-
-  // Vuelta desde el enlace del correo (confirmación o recuperar contraseña)
-  async function handleRedirect(){
-    const h = window.location.hash;
-    if(!h || h.indexOf('access_token=') === -1 && h.indexOf('error') === -1) return null;
-    const p = new URLSearchParams(h.slice(1));
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    if(p.get('error')){ accountMsg = { type:'error', text:'El enlace ha caducado o no es válido. Pide uno nuevo.' }; return 'account'; }
-    const tmp = { access_token: p.get('access_token'), refresh_token: p.get('refresh_token'),
-      expires_at: Number(p.get('expires_at')) || (Math.floor(Date.now()/1000) + Number(p.get('expires_in') || 3600)), user:null };
-    session = tmp;
-    try{ tmp.user = await api('/auth/v1/user'); }catch(e){ session = null; return null; }
-    saveSession(tmp);
-    if(p.get('type') === 'recovery'){ accountView = 'recovery'; return 'account'; }
-    accountMsg = { type:'ok', text:'¡Email confirmado! Ya tienes la cuenta activa y tu progreso se guarda en la nube.' };
-    await pull();
-    return 'account';
   }
 
   /* ---------- UI ---------- */
@@ -311,7 +291,7 @@ const Cloud = (function(){
     if(typeof clearTimer === 'function') clearTimer();
     document.getElementById('topbarSub').textContent = 'Mi cuenta';
     let inner;
-    if(session && accountView !== 'recovery'){
+    if(session){
       inner = `
         <div class="acc-card">
           <div class="acc-avatar">${icon('user', 26)}</div>
@@ -323,14 +303,6 @@ const Cloud = (function(){
         <p class="empty-hint">Tu historial, falladas, logros y el test a medias se guardan en tu cuenta. Entra con el mismo email en otro móvil u ordenador y lo tendrás todo.</p>
         <button class="btn-primary" data-action="cloudSyncNow">${icon('route',18)} Sincronizar ahora</button>
         <button class="btn-secondary acc-full" data-action="cloudLogout">Cerrar sesión</button>`;
-    } else if(accountView === 'recovery'){
-      inner = `
-        <div class="section-label">Nueva contraseña</div>
-        ${msgHtml()}
-        <form data-form="recovery" class="acc-form">
-          <label>Nueva contraseña<input name="password" type="password" minlength="6" autocomplete="new-password" required></label>
-          <button class="btn-primary" type="submit">Guardar contraseña</button>
-        </form>`;
     } else if(accountView === 'signup'){
       inner = `
         <div class="section-label">Crear cuenta</div>
@@ -342,15 +314,6 @@ const Cloud = (function(){
           <button class="btn-primary" type="submit">Crear cuenta</button>
         </form>
         <button class="acc-link" data-action="cloudView" data-args='["login"]'>Ya tengo cuenta · Iniciar sesión</button>`;
-    } else if(accountView === 'forgot'){
-      inner = `
-        <div class="section-label">Recuperar contraseña</div>
-        ${msgHtml()}
-        <form data-form="forgot" class="acc-form">
-          <label>Email<input name="email" type="email" autocomplete="email" required></label>
-          <button class="btn-primary" type="submit">Enviar enlace</button>
-        </form>
-        <button class="acc-link" data-action="cloudView" data-args='["login"]'>Volver a iniciar sesión</button>`;
     } else {
       inner = `
         <div class="section-label">Iniciar sesión</div>
@@ -361,7 +324,7 @@ const Cloud = (function(){
           <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
           <button class="btn-primary" type="submit">Entrar</button>
         </form>
-        <button class="acc-link" data-action="cloudView" data-args='["forgot"]'>¿Has olvidado la contraseña?</button>
+        <p class="empty-hint acc-forgot">¿Has olvidado la contraseña? Pide al administrador de la app que te la restablezca.</p>
         <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>
         <button class="acc-link welcome-guest" data-action="renderHome" data-guest="1">Continuar como invitado</button>`;
     }
@@ -383,18 +346,8 @@ const Cloud = (function(){
     },
     async signup(f){
       const r = await signup(f.email.value.trim(), f.password.value, f.name.value.trim());
-      if(r === 'confirm'){ accountView = 'login'; accountMsg = { type:'ok', text:'Te hemos enviado un correo para confirmar la cuenta. Ábrelo desde este dispositivo y quedarás dentro.' }; }
+      if(r === 'exists'){ accountView = 'login'; accountMsg = { type:'error', text:'Ese email ya tiene cuenta. Inicia sesión con tu contraseña.' }; }
       else accountMsg = { type:'ok', text:'¡Cuenta creada! Tu progreso ya se guarda en la nube.' };
-    },
-    async forgot(f){
-      await forgot(f.email.value.trim());
-      accountMsg = { type:'ok', text:'Si ese email tiene cuenta, te llegará un enlace para poner una contraseña nueva.' };
-    },
-    async recovery(f){
-      await setNewPassword(f.password.value);
-      accountView = 'login';
-      accountMsg = { type:'ok', text:'Contraseña cambiada. Ya estás dentro.' };
-      await pull();
     }
   };
   document.addEventListener('submit', async e=>{
@@ -415,9 +368,6 @@ const Cloud = (function(){
     onRemoteApplied = onApplied;
     session = parse(Store.getRaw(SESSION_KEY), null);
     updateBadge();
-    const r = await handleRedirect();
-    updateBadge();
-    if(r === 'account'){ renderAccount(); return; }
     if(session){ pull(); return; }
     // Sin sesión: el dispositivo recuerda si ya tuvo cuenta, si entró como invitado o si es nuevo
     const mode = Store.getRaw(DEVICE_MODE_KEY);
@@ -449,7 +399,6 @@ const Cloud = (function(){
 
   return {
     init, renderAccount, renderRanking, recordScore,
-    toggleRanking(on){ updateProfile({ show_in_ranking: !!on }); },
     setRankName(name){ const n = String(name || '').trim().slice(0, 24); if(n) updateProfile({ display_name: n }); },
     view(v){ accountView = v; accountMsg = null; renderAccount(); },
     syncNow(){ pull(); },
@@ -462,5 +411,4 @@ function openAccount(){ Cloud.renderAccount(); window.scrollTo(0,0); }
 function cloudView(v){ Cloud.view(v); }
 function cloudSyncNow(){ Cloud.syncNow(); }
 function cloudLogout(){ Cloud.logout(); }
-function cloudToggleRanking(on){ Cloud.toggleRanking(on); }
 function cloudSetRankName(name){ Cloud.setRankName(name); }

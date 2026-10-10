@@ -802,11 +802,9 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .btn-mini.ghost{background:transparent; color:var(--text); border:1.5px solid var(--border);}
 .exam-date-card{display:flex; flex-direction:column; gap:10px; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:14px;}
 .ed-field{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:14px; font-weight:600; color:var(--text);}
-.ed-field input{font:inherit; font-size:15px; padding:8px 10px; border-radius:9px; border:1.5px solid var(--border); background:var(--bg); color:var(--text);}
 .ed-plan{display:flex; flex-direction:column; gap:5px;}
 .ed-plan > b{font-family:var(--font-head); font-size:19px; text-transform:uppercase; color:var(--text);}
 .ed-hint{font-size:13px; color:var(--text-muted); line-height:1.4;}
-.ed-clear{text-align:left; padding:0; width:auto; align-self:flex-start;}
 
 /* ---------- INSTALAR APP ---------- */
 .install-banner{display:flex; align-items:center; gap:10px; background:var(--banner-bg); border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin-bottom:12px; font-size:13.5px; color:var(--text); line-height:1.35;}
@@ -843,3 +841,5 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .rank-rules{font-size:12px; color:var(--text-muted); text-align:center; line-height:1.4;}
 .home-tabs .home-tab{flex:1 1 auto; min-width:0; padding:10px 6px; font-size:14.5px; letter-spacing:0.01em; white-space:nowrap;}
 .ed-field > span{display:inline-flex; align-items:center; gap:6px;}
+
+.acc-forgot{text-align:center; font-size:13px; margin:2px 0 6px;}

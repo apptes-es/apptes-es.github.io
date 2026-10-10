@@ -6,6 +6,7 @@ const SUPABASE_URL = 'https://mqdzwszearfsbracdybq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_xvIkndYAPPAwVbIjMdk5ag_BeEYkTMs'; // clave pública (segura en el navegador gracias a RLS)
 const SITE_URL = 'https://apptes-es.github.io/';
 const SESSION_KEY = 'tes_session_v1';      // no se sincroniza
+const DEVICE_MODE_KEY = 'tes_device_mode_v1'; // 'user' si alguna vez entró con cuenta aquí, 'guest' si eligió invitado
 const LOCAL_STAMP_KEY = 'tes_local_updated_v1';
 const SYNC_KEYS = [
   'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
@@ -39,7 +40,8 @@ const Cloud = (function(){
   /* ---------- SESIÓN ---------- */
   function saveSession(s){
     session = s;
-    if(s) Store.setRaw(SESSION_KEY, JSON.stringify(s)); else Store.remove(SESSION_KEY);
+    if(s){ Store.setRaw(SESSION_KEY, JSON.stringify(s)); Store.setRaw(DEVICE_MODE_KEY, 'user'); }
+    else Store.remove(SESSION_KEY);
   }
   function fromTokenResponse(d){
     return { access_token: d.access_token, refresh_token: d.refresh_token,
@@ -267,7 +269,8 @@ const Cloud = (function(){
           <button class="btn-primary" type="submit">Entrar</button>
         </form>
         <button class="acc-link" data-action="cloudView" data-args='["forgot"]'>¿Has olvidado la contraseña?</button>
-        <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>`;
+        <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>
+        <button class="acc-link welcome-guest" data-action="renderHome" data-guest="1">Continuar como invitado</button>`;
     }
     document.getElementById('screen').innerHTML = `
       <div class="home" id="accountScreen">
@@ -311,6 +314,9 @@ const Cloud = (function(){
     catch(err){ accountMsg = { type:'error', text: friendlyError(err) }; renderAccount(); }
   });
 
+  // Recordar que en este dispositivo se eligió entrar como invitado
+  document.addEventListener('click', e=>{ if(e.target.closest('[data-guest]')) Store.setRaw(DEVICE_MODE_KEY, 'guest'); });
+
   let onRemoteApplied = null;
   async function init(onApplied){
     onRemoteApplied = onApplied;
@@ -319,8 +325,17 @@ const Cloud = (function(){
     const r = await handleRedirect();
     updateBadge();
     if(r === 'account'){ renderAccount(); return; }
-    if(session) pull();
-    else renderWelcome();
+    if(session){ pull(); return; }
+    // Sin sesión: el dispositivo recuerda si ya tuvo cuenta, si entró como invitado o si es nuevo
+    const mode = Store.getRaw(DEVICE_MODE_KEY);
+    if(mode === 'guest') return;                       // invitado: directo al inicio
+    if(mode === 'user'){                               // ya tiene cuenta: directo a iniciar sesión
+      accountView = 'login';
+      accountMsg = { type:'ok', text:'¡Hola de nuevo! Inicia sesión para recuperar tu progreso.' };
+      renderAccount();
+      return;
+    }
+    renderWelcome();                                   // nuevo: pantalla de bienvenida
   }
 
   // Pantalla de bienvenida al abrir la app sin sesión
@@ -334,7 +349,7 @@ const Cloud = (function(){
           <p class="welcome-text">Crea una cuenta para guardar tu progreso en la nube y verlo en cualquier móvil u ordenador, o entra como invitado y se guardará solo en este dispositivo.</p>
           <button class="btn-primary" data-action="cloudView" data-args='["signup"]'>${icon('user',18)} Crear cuenta nueva</button>
           <button class="btn-secondary acc-full" data-action="cloudView" data-args='["login"]'>Iniciar sesión</button>
-          <button class="acc-link welcome-guest" data-action="renderHome">Continuar como invitado</button>
+          <button class="acc-link welcome-guest" data-action="renderHome" data-guest="1">Continuar como invitado</button>
         </div>
       </div>`;
   }

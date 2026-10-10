@@ -320,6 +320,23 @@ const Cloud = (function(){
     updateBadge();
     if(r === 'account'){ renderAccount(); return; }
     if(session) pull();
+    else renderWelcome();
+  }
+
+  // Pantalla de bienvenida al abrir la app sin sesión
+  function renderWelcome(){
+    document.getElementById('topbarSub').textContent = 'Técnico en Emergencias Sanitarias';
+    document.getElementById('screen').innerHTML = `
+      <div class="home welcome" id="welcomeScreen">
+        <div class="welcome-card">
+          <div class="welcome-mascot mascot-idle">${mascotSVG('happy', 84)}</div>
+          <h2 class="welcome-title">¡Bienvenido a TES Test!</h2>
+          <p class="welcome-text">Crea una cuenta para guardar tu progreso en la nube y verlo en cualquier móvil u ordenador, o entra como invitado y se guardará solo en este dispositivo.</p>
+          <button class="btn-primary" data-action="cloudView" data-args='["signup"]'>${icon('user',18)} Crear cuenta nueva</button>
+          <button class="btn-secondary acc-full" data-action="cloudView" data-args='["login"]'>Iniciar sesión</button>
+          <button class="acc-link welcome-guest" data-action="renderHome">Continuar como invitado</button>
+        </div>
+      </div>`;
   }
 
   return {

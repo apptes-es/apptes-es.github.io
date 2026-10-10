@@ -774,3 +774,11 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .acc-link{display:block; width:100%; background:none; border:none; color:var(--accent-text); font:inherit; font-size:14px; font-weight:600; padding:10px; cursor:pointer; text-align:center;}
 .acc-full{width:100%; margin-top:10px;}
 #accountScreen .btn-primary{margin-bottom:0;}
+
+/* ---------- BIENVENIDA ---------- */
+.welcome{display:flex; align-items:center; min-height:calc(100vh - 160px);}
+.welcome-card{width:100%; background:var(--card-bg); border:1px solid var(--border); border-radius:18px; padding:26px 20px 14px; text-align:center;}
+.welcome-mascot{display:flex; justify-content:center; margin-bottom:8px;}
+.welcome-title{font-family:var(--font-head); font-size:26px; font-weight:800; text-transform:uppercase; color:var(--text); margin-bottom:8px;}
+.welcome-text{font-size:15px; line-height:1.45; color:var(--text-muted); margin-bottom:20px;}
+.welcome-guest{margin-top:6px; color:var(--text-muted);}

@@ -26,7 +26,12 @@ function passScoreFor(total){ return Math.ceil(total * PASS_RATIO); }
 
 /* ---------------- ASIGNATURAS ---------------- */
 function getSubject(id){ return SUBJECTS.find(s=>s.id===id) || {id, name:id||'Sin asignatura', short:id||'—', icon:'book', color:'#1C5FB0'}; }
-const QUESTIONS_BY_SUBJECT = QUESTIONS.reduce((m,q)=>{ (m[q.subject] = m[q.subject] || []).push(q); return m; }, {});
+const QUESTIONS_BY_SUBJECT = {};
+function rebuildSubjectIndex(){
+  Object.keys(QUESTIONS_BY_SUBJECT).forEach(k=>delete QUESTIONS_BY_SUBJECT[k]);
+  QUESTIONS.forEach(q=>{ (QUESTIONS_BY_SUBJECT[q.subject] = QUESTIONS_BY_SUBJECT[q.subject] || []).push(q); });
+}
+rebuildSubjectIndex();
 function questionsOf(subjectId){ return QUESTIONS_BY_SUBJECT[subjectId] || []; }
 function temasOf(subjectId){
   const out = [];
@@ -222,7 +227,16 @@ function shuffle(arr){
   }
   return a;
 }
-const QUESTION_BY_ID = new Map(QUESTIONS.map(q=>[q.id, q]));
+const QUESTION_BY_ID = new Map();
+function rebuildIdIndex(){ QUESTION_BY_ID.clear(); QUESTIONS.forEach(q=>QUESTION_BY_ID.set(q.id, q)); }
+rebuildIdIndex();
+// Se llama cuando llega un banco de preguntas nuevo desde la nube
+function onBankUpdated(){
+  rebuildSubjectIndex();
+  rebuildIdIndex();
+  const onHome = document.querySelector('.home-tabs') && !document.getElementById('accountScreen') && !document.getElementById('welcomeScreen');
+  if(onHome){ if(currentSubjectId) renderSubject(currentSubjectId); else renderHome(); }
+}
 function findQuestionById(id){ return QUESTION_BY_ID.get(id); }
 
 /* ---------------- HISTORIAL ---------------- */
@@ -623,6 +637,121 @@ function timedToggleHtml(){
   return `<label class="mode-toggle"><input type="checkbox" id="timedMode"> ${icon('clock',15)} Modo cronometrado (45 min)</label>`;
 }
 
+/* ---------------- FECHAS DE EXAMEN Y PLAN DIARIO ---------------- */
+const EXAM_DATES_KEY = 'tes_exam_dates_v1';
+function loadExamDates(){ const v = safeGetJSON(EXAM_DATES_KEY, {}); return (v && typeof v === 'object') ? v : {}; }
+function todayStart(){ const d = new Date(); d.setHours(0,0,0,0); return d; }
+function parseDay(str){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str || ''); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; }
+function daysUntil(str){ const d = parseDay(str); return d ? Math.round((d - todayStart()) / 86400000) : null; }
+function formatDay(str){ const d = parseDay(str); return d ? d.toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'}) : ''; }
+function setExamDate(subjectId, value){
+  const dates = loadExamDates();
+  if(value) dates[subjectId] = value; else delete dates[subjectId];
+  safeSetJSON(EXAM_DATES_KEY, dates);
+  renderSubject(subjectId);
+}
+function clearExamDate(subjectId){ setExamDate(subjectId, ''); }
+// Plan: ver cada pregunta no dominada al menos dos veces antes del examen
+function examPlan(subjectId){
+  const date = loadExamDates()[subjectId];
+  const days = daysUntil(date);
+  if(days === null || days < 0) return null;
+  const qs = questionsOf(subjectId);
+  const mastered = new Set(loadMasteredIds());
+  const pending = qs.filter(q=>!mastered.has(q.id)).length;
+  const perTest = Math.max(1, Math.min(TEST_SIZE, qs.length));
+  const testsNeeded = Math.ceil(pending * 2 / perTest);
+  const perDay = days === 0 ? 1 : Math.min(5, Math.max(1, Math.ceil(testsNeeded / days)));
+  const t0 = todayStart().getTime();
+  const doneToday = loadHistory().filter(h=>h.subject === subjectId && h.date >= t0).length;
+  return { date, days, pending, perDay, doneToday };
+}
+function examCountdownLabel(days){
+  if(days === 0) return '¡Examen hoy!';
+  if(days === 1) return 'Examen mañana';
+  return 'Examen en ' + days + ' días';
+}
+function examChipHtml(subjectId){
+  const plan = examPlan(subjectId);
+  if(!plan) return '';
+  const cls = plan.days <= 3 ? 'hot' : plan.days <= 7 ? 'warm' : '';
+  return `<span class="exam-chip ${cls}">${icon('clock',12)} ${examCountdownLabel(plan.days)}</span>`;
+}
+function planDotsHtml(plan){
+  let out = '';
+  for(let i=0;i<plan.perDay;i++) out += `<i class="${i < plan.doneToday ? 'on' : ''}"></i>`;
+  return `<span class="plan-dots" aria-label="${Math.min(plan.doneToday, plan.perDay)} de ${plan.perDay} tests hechos hoy">${out}</span>`;
+}
+function planText(plan){
+  if(plan.days === 0) return '¡Hoy toca! Un último repaso tranquilo y a por ello.';
+  if(plan.doneToday >= plan.perDay) return `Plan de hoy cumplido (${plan.doneToday}/${plan.perDay}). ¡Así se hace!`;
+  return `Hoy: ${plan.doneToday}/${plan.perDay} tests · te quedan ${plan.pending} preguntas por dominar`;
+}
+// Tarjeta del examen más cercano en la portada
+function nextExamCardHtml(){
+  const plans = SUBJECTS.map(s=>({ s, plan: examPlan(s.id) })).filter(x=>x.plan && questionsOf(x.s.id).length);
+  if(!plans.length) return '';
+  plans.sort((a,b)=>a.plan.days - b.plan.days);
+  const { s, plan } = plans[0];
+  const done = plan.doneToday >= plan.perDay;
+  return `<div class="next-exam ${plan.days <= 3 ? 'hot' : ''}" style="--sc:${s.color}">
+    <div class="ne-count"><b>${plan.days}</b><span>${plan.days === 1 ? 'día' : 'días'}</span></div>
+    <div class="ne-body">
+      <span class="ne-eyebrow">Próximo examen · ${escapeHtml(formatDay(plan.date))}</span>
+      <b>${escapeHtml(s.name)}</b>
+      <div class="ne-plan">${planDotsHtml(plan)} <span>${escapeHtml(planText(plan))}</span></div>
+    </div>
+    <button class="btn-mini ${done ? 'ghost' : ''}" data-action="startSubjectTest" data-args='["${s.id}"]'>${done ? 'Otro más' : 'Hacer test'}</button>
+  </div>`;
+}
+// Bloque de fecha de examen en la pantalla de la asignatura
+function examDateBlockHtml(subjectId){
+  const date = loadExamDates()[subjectId] || '';
+  const plan = examPlan(subjectId);
+  const past = date && !plan;
+  return `<div class="section-label">Fecha del examen</div>
+  <div class="exam-date-card">
+    <label class="ed-field" for="examDate-${subjectId}"><span>${icon('clock',15)} Día del examen</span>
+      <input type="date" id="examDate-${subjectId}" value="${escapeHtml(date)}" data-change="setExamDate" data-args='["${subjectId}"]'>
+    </label>
+    ${plan ? `<div class="ed-plan">
+        <b>${examCountdownLabel(plan.days)}</b>
+        <div class="ne-plan">${planDotsHtml(plan)} <span>${escapeHtml(planText(plan))}</span></div>
+        <span class="ed-hint">Recomendación: ${plan.perDay} ${plan.perDay === 1 ? 'test' : 'tests'} al día para ver dos veces cada pregunta que aún no dominas.</span>
+      </div>` : past ? `<div class="ed-plan"><span class="ed-hint">Ese examen ya pasó. Pon la fecha del siguiente o bórrala.</span></div>`
+      : `<span class="ed-hint">Pon la fecha y te diré cuántos tests hacer cada día.</span>`}
+    ${date ? `<button class="acc-link ed-clear" data-action="clearExamDate" data-args='["${subjectId}"]'>Quitar fecha</button>` : ''}
+  </div>`;
+}
+
+/* ---------------- INSTALAR LA APP (PWA) ---------------- */
+let deferredInstallPrompt = null;
+const INSTALL_DISMISSED_KEY = 'tes_install_dismissed_v1';
+function isStandalone(){ return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
+function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredInstallPrompt = e; if(document.querySelector('.home-tabs') && !currentSubjectId) renderHome(); });
+window.addEventListener('appinstalled', ()=>{ deferredInstallPrompt = null; Store.setRaw(INSTALL_DISMISSED_KEY, '1'); });
+function installBannerHtml(){
+  if(isStandalone() || Store.getRaw(INSTALL_DISMISSED_KEY)) return '';
+  if(deferredInstallPrompt){
+    return `<div class="install-banner">${icon('download',18)}<span><b>Instala TES Test</b> en tu móvil: icono propio y funciona sin cobertura.</span>
+      <button class="btn-mini" data-action="installApp">Instalar</button><button class="ib-close" data-action="dismissInstall" aria-label="Cerrar">${icon('cross',14)}</button></div>`;
+  }
+  if(isIOS()){
+    return `<div class="install-banner">${icon('download',18)}<span><b>Instala TES Test</b>: en Safari pulsa Compartir y luego "Añadir a pantalla de inicio".</span>
+      <button class="ib-close" data-action="dismissInstall" aria-label="Cerrar">${icon('cross',14)}</button></div>`;
+  }
+  return '';
+}
+async function installApp(){
+  if(!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  try{ await deferredInstallPrompt.userChoice; }catch(e){}
+  deferredInstallPrompt = null;
+  renderHome();
+}
+function dismissInstall(){ Store.setRaw(INSTALL_DISMISSED_KEY, '1'); renderHome(); }
+
 /* ---------------- RENDER: HOME ---------------- */
 function renderHome(){
   if(saveProgressTimer) writeProgressNow();
@@ -642,6 +771,7 @@ function renderHome(){
       <div class="sc-body">
         <b>${escapeHtml(s.name)}</b>
         <span>${n ? `${n} preguntas · ${nt} ${nt===1?'tema':'temas'} · ${m}% dominado` : 'Próximamente'}</span>
+        ${n ? examChipHtml(s.id) : ''}
         <div class="sc-meter"><div style="width:${m}%"></div></div>
       </div>
       <div class="sc-arrow">${icon('chevronRight',18)}</div>
@@ -665,6 +795,7 @@ function renderHome(){
   document.getElementById('screen').innerHTML = `
     <div class="home">
       ${continueBannerHtml()}
+      ${installBannerHtml()}
       <div class="hero">
         ${ecgSVG()}
         <div class="hero-top">
@@ -684,12 +815,16 @@ function renderHome(){
       <div class="home-tabs">
         <button class="home-tab ${homeTab==='asignaturas'?'active':''}" data-action="switchHomeTab" data-args='["asignaturas"]'>Asignaturas</button>
         <button class="home-tab ${homeTab==='progreso'?'active':''}" data-action="switchHomeTab" data-args='["progreso"]'>Progreso</button>
+        <button class="home-tab ${homeTab==='ranking'?'active':''}" data-action="switchHomeTab" data-args='["ranking"]'>Ranking</button>
       </div>
 
       ${homeTab === 'asignaturas' ? `
+      ${nextExamCardHtml()}
       <div class="section-label">Elige asignatura</div>
       ${subjectsHtml}
 
+      ` : homeTab === 'ranking' ? `
+      <div id="rankingBox" class="ranking-box"><p class="empty-hint">Cargando ranking…</p></div>
       ` : `
       ${bestPercent !== null ? `
       <div class="section-label">Récord personal</div>
@@ -710,6 +845,7 @@ function renderHome(){
     </div>
     <footer class="note">Aprobado orientativo: 50% de aciertos. Contrasta siempre con tus apuntes y el material oficial del ciclo.</footer>
   `;
+  if(homeTab === 'ranking') Cloud.renderRanking(document.getElementById('rankingBox'));
 }
 function switchHomeTab(tab){ homeTab = tab; renderHome(); }
 
@@ -750,6 +886,7 @@ function renderSubject(id){
 
       <button class="btn-primary" data-action="startSubjectTest" data-args='["${id}"]'>${icon('siren',20)} Simulacro de examen</button>
       <p class="sim-hint">${Math.min(TEST_SIZE, qs.length)} preguntas al azar de todos los temas, priorizando las que no salieron en el simulacro anterior.</p>
+      ${examDateBlockHtml(id)}
 
       <div class="home-tabs">
         <button class="home-tab ${subjectTab==='practicar'?'active':''}" data-action="switchSubjectTab" data-args='["practicar"]'>Practicar</button>
@@ -923,6 +1060,9 @@ function finishTest(timeUp){
   const achvBefore = getAchievements(historyBefore).filter(a=>a.earned).map(a=>a.id);
 
   saveHistoryEntry({date:Date.now(), score, total, mode:currentTest.mode, subject:currentTest.subject, label:currentTest.label, subjBreakdown, temaBreakdown, maxCombo});
+  // Puntos del ranking semanal: 1 por acierto y +10 por aprobar un simulacro
+  if(total > 0) Cloud.recordScore({ subject: currentTest.subject, mode: currentTest.mode, correct: score, total,
+    points: score + ((currentTest.mode === 'subject' && score >= passScoreFor(total)) ? 10 : 0) });
   updateFailedBank();
   updateMasteredIds();
   clearProgress();
@@ -1027,6 +1167,12 @@ function animateScoreCount(target){
 
 /* ---------------- EVENTOS (delegación, sin onclick en el HTML) ---------------- */
 const ACTIONS = {
+  setExamDate,
+  clearExamDate,
+  installApp,
+  dismissInstall,
+  cloudToggleRanking,
+  cloudSetRankName,
   openAccount,
   cloudView,
   cloudSyncNow,
@@ -1065,6 +1211,16 @@ document.addEventListener('click', e=>{
   if(el.dataset.args){ try{ args = JSON.parse(el.dataset.args); }catch(err){ return; } }
   fn(...args);
 });
+// Campos que guardan al cambiar (fecha de examen, ranking...): reciben sus argumentos + el valor
+document.addEventListener('change', e=>{
+  const el = e.target.closest('[data-change]');
+  if(!el) return;
+  const fn = ACTIONS[el.dataset.change];
+  if(!fn) return;
+  let args = [];
+  if(el.dataset.args){ try{ args = JSON.parse(el.dataset.args); }catch(err){ return; } }
+  fn(...args, el.type === 'checkbox' ? el.checked : el.value);
+});
 
 /* ---------------- INIT ---------------- */
 (function init(){
@@ -1076,4 +1232,10 @@ document.addEventListener('click', e=>{
   renderHome();
   // Cuenta opcional en la nube: al traer datos, refresca la portada si el usuario está en ella
   Cloud.init(()=>{ if(document.querySelector('.home-tabs') && !document.getElementById('accountScreen')) renderHome(); });
+  // Banco de preguntas: pide la versión más nueva a la nube sin bloquear la app
+  Bank.refresh(onBankUpdated);
+  // App instalable y sin conexión
+  if('serviceWorker' in navigator && location.protocol === 'https:'){
+    window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  }
 })();

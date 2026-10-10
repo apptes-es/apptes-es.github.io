@@ -10,8 +10,9 @@ const DEVICE_MODE_KEY = 'tes_device_mode_v1'; // 'user' si alguna vez entró con
 const LOCAL_STAMP_KEY = 'tes_local_updated_v1';
 const SYNC_KEYS = [
   'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
-  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1'
+  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1', 'tes_exam_dates_v1'
 ];
+const SCORE_QUEUE_KEY = 'tes_score_queue_v1'; // puntos pendientes de subir al ranking
 
 const Cloud = (function(){
   let session = null;        // {access_token, refresh_token, expires_at, user:{id,email,user_metadata}}
@@ -108,6 +109,7 @@ const Cloud = (function(){
       Store.restore(final);
       applyingRemote = false;
       await push(true);
+      flushScores();
       if(typeof onRemoteApplied === 'function') onRemoteApplied();
     }catch(e){
       applyingRemote = false;
@@ -135,6 +137,98 @@ const Cloud = (function(){
   });
   window.addEventListener('pagehide', ()=>{ if(pushTimer && session){ push(true); } });
   window.addEventListener('online', ()=>{ if(session) pull(); });
+
+  /* ---------- RANKING SEMANAL ---------- */
+  function recordScore(entry){
+    if(!session) return;   // los invitados no puntúan
+    const q = Store.get(SCORE_QUEUE_KEY, []);
+    q.push(Object.assign({ at: new Date().toISOString() }, entry));
+    Store.set(SCORE_QUEUE_KEY, q.slice(-50));
+    flushScores();
+  }
+  let flushing = false;
+  async function flushScores(){
+    if(flushing || !session) return;
+    flushing = true;
+    try{
+      if(!(await ensureFreshToken())) return;
+      let q = Store.get(SCORE_QUEUE_KEY, []);
+      while(q.length){
+        const e = q[0];
+        await api('/rest/v1/scores', { method:'POST', headers:{ Prefer:'return=minimal' }, body:{
+          user_id: session.user.id, subject: e.subject || null, mode: e.mode || null,
+          correct: Math.max(0, Math.min(200, e.correct|0)), total: Math.max(1, Math.min(200, e.total|0)),
+          points: Math.max(0, Math.min(260, e.points|0)) } });
+        q = q.slice(1);
+        Store.set(SCORE_QUEUE_KEY, q);
+      }
+    }catch(e){ /* se reintenta en la próxima sincronización */ }
+    finally{ flushing = false; }
+  }
+  function weekRangeText(){
+    const now = new Date();
+    const day = (now.getDay() + 6) % 7;      // lunes = 0
+    const mon = new Date(now); mon.setDate(now.getDate() - day);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const f = d=>d.toLocaleDateString('es-ES', { day:'numeric', month:'short' });
+    return f(mon) + ' – ' + f(sun);
+  }
+  let rankingProfile = null;
+  async function renderRanking(box){
+    if(!box) return;
+    if(!session){
+      box.innerHTML = `
+        <div class="rank-empty">
+          <div class="rank-trophy">${icon('medal', 30)}</div>
+          <b>Ranking semanal de la clase</b>
+          <p class="empty-hint">Suma puntos con cada test y compite con tus compañeros. Para entrar necesitas una cuenta.</p>
+          <button class="btn-primary" data-action="cloudView" data-args='["signup"]'>Crear cuenta</button>
+          <button class="acc-link" data-action="cloudView" data-args='["login"]'>Ya tengo cuenta · Iniciar sesión</button>
+        </div>`;
+      return;
+    }
+    try{
+      await ensureFreshToken();
+      await flushScores();
+      const [prof, rows] = await Promise.all([
+        api('/rest/v1/profiles?select=display_name,show_in_ranking&id=eq.' + session.user.id),
+        api('/rest/v1/rpc/weekly_ranking', { method:'POST', body:{} })
+      ]);
+      rankingProfile = (prof && prof[0]) || { display_name: displayName(), show_in_ranking: false };
+      if(!box.isConnected) return;
+      const me = rows.find(r=>r.is_me);
+      const list = rows.length ? rows.map(r=>{
+        const medal = r.rank <= 3 ? `<span class="rank-medal m${r.rank}">${r.rank}</span>` : `<span class="rank-pos">${r.rank}</span>`;
+        return `<li class="${r.is_me ? 'me' : ''}">${medal}<span class="rank-name">${escapeHtml(r.display_name)}${r.is_me ? ' <em>(tú)</em>' : ''}</span>
+          <span class="rank-tests">${r.tests} ${r.tests == 1 ? 'test' : 'tests'}</span><b class="rank-pts">${r.points}</b></li>`;
+      }).join('') : '';
+      box.innerHTML = `
+        <div class="rank-head">
+          <div><b>Ranking de la semana</b><span>${escapeHtml(weekRangeText())} · se reinicia el lunes</span></div>
+          ${me ? `<div class="rank-mine"><b>${me.points}</b><span>tus puntos · ${me.rank}º</span></div>` : ''}
+        </div>
+        <div class="rank-settings">
+          <label class="rank-toggle"><input type="checkbox" id="rankToggle" ${rankingProfile.show_in_ranking ? 'checked' : ''} data-change="cloudToggleRanking"> Aparecer en el ranking</label>
+          <label class="rank-namefield" for="rankName">Nombre visible
+            <input type="text" id="rankName" maxlength="24" value="${escapeHtml(rankingProfile.display_name || '')}" data-change="cloudSetRankName">
+          </label>
+        </div>
+        ${!rankingProfile.show_in_ranking ? `<p class="empty-hint">Ahora mismo no apareces. Tus puntos se guardan igualmente y se verán en cuanto actives la casilla.</p>` : ''}
+        ${list ? `<ol class="rank-list">${list}</ol>` : `<p class="empty-hint">Nadie ha puntuado todavía esta semana. ¡Haz un test y estrena el ranking!</p>`}
+        <p class="rank-rules">1 punto por cada acierto · +10 por aprobar un simulacro de examen. Solo cuentan los tests hechos con la sesión iniciada.</p>`;
+    }catch(e){
+      if(box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo cargar el ranking. ${escapeHtml(friendlyError(e))}</p>`;
+    }
+  }
+  async function updateProfile(fields){
+    if(!session) return;
+    try{
+      await ensureFreshToken();
+      await api('/rest/v1/profiles?id=eq.' + session.user.id, { method:'PATCH', headers:{ Prefer:'return=minimal' }, body: fields });
+    }catch(e){}
+    const box = document.getElementById('rankingBox');
+    if(box) renderRanking(box);
+  }
 
   /* ---------- ACCIONES DE CUENTA ---------- */
   function friendlyError(e){
@@ -355,7 +449,9 @@ const Cloud = (function(){
   }
 
   return {
-    init, renderAccount,
+    init, renderAccount, renderRanking, recordScore,
+    toggleRanking(on){ updateProfile({ show_in_ranking: !!on }); },
+    setRankName(name){ const n = String(name || '').trim().slice(0, 24); if(n) updateProfile({ display_name: n }); },
     view(v){ accountView = v; accountMsg = null; renderAccount(); },
     syncNow(){ pull(); },
     async logout(){ await logout(); accountView = 'login'; accountMsg = { type:'ok', text:'Sesión cerrada. Tu progreso sigue guardado en este dispositivo.' }; renderAccount(); updateBadge(); },
@@ -367,3 +463,5 @@ function openAccount(){ Cloud.renderAccount(); window.scrollTo(0,0); }
 function cloudView(v){ Cloud.view(v); }
 function cloudSyncNow(){ Cloud.syncNow(); }
 function cloudLogout(){ Cloud.logout(); }
+function cloudToggleRanking(on){ Cloud.toggleRanking(on); }
+function cloudSetRankName(name){ Cloud.setRankName(name); }

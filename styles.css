@@ -782,3 +782,64 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .welcome-title{font-family:var(--font-head); font-size:26px; font-weight:800; text-transform:uppercase; color:var(--text); margin-bottom:8px;}
 .welcome-text{font-size:15px; line-height:1.45; color:var(--text-muted); margin-bottom:20px;}
 .welcome-guest{margin-top:6px; color:var(--text-muted);}
+
+/* ---------- FECHAS DE EXAMEN ---------- */
+.sc-body .exam-chip{display:inline-flex; align-items:center; gap:4px; margin:6px 0 0; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; background:var(--select-bg); color:var(--accent-text);}
+.sc-body .exam-chip.warm{background:var(--badge-bg); color:var(--badge-text);}
+.sc-body .exam-chip.hot{background:var(--danger-bg); color:var(--danger-text);}
+.next-exam{display:flex; align-items:center; gap:14px; background:var(--card-bg); border:1px solid var(--border); border-left:5px solid var(--sc); border-radius:14px; padding:14px; margin-bottom:6px;}
+.next-exam.hot{border-left-color:var(--siren);}
+.ne-count{flex-shrink:0; width:58px; text-align:center; font-family:var(--font-head); line-height:1;}
+.ne-count b{display:block; font-size:34px; font-weight:800; color:var(--text);}
+.ne-count span{font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);}
+.ne-body{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+.ne-eyebrow{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted);}
+.ne-body > b{font-size:15.5px; color:var(--text); line-height:1.25;}
+.ne-plan{display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);}
+.plan-dots{display:inline-flex; gap:4px;}
+.plan-dots i{width:10px; height:10px; border-radius:50%; border:2px solid var(--hivis-green); background:transparent;}
+.plan-dots i.on{background:var(--hivis-green);}
+.btn-mini.ghost{background:transparent; color:var(--text); border:1.5px solid var(--border);}
+.exam-date-card{display:flex; flex-direction:column; gap:10px; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:14px;}
+.ed-field{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:14px; font-weight:600; color:var(--text);}
+.ed-field input{font:inherit; font-size:15px; padding:8px 10px; border-radius:9px; border:1.5px solid var(--border); background:var(--bg); color:var(--text);}
+.ed-plan{display:flex; flex-direction:column; gap:5px;}
+.ed-plan > b{font-family:var(--font-head); font-size:19px; text-transform:uppercase; color:var(--text);}
+.ed-hint{font-size:13px; color:var(--text-muted); line-height:1.4;}
+.ed-clear{text-align:left; padding:0; width:auto; align-self:flex-start;}
+
+/* ---------- INSTALAR APP ---------- */
+.install-banner{display:flex; align-items:center; gap:10px; background:var(--banner-bg); border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin-bottom:12px; font-size:13.5px; color:var(--text); line-height:1.35;}
+.install-banner > span{flex:1; min-width:0;}
+.ib-close{background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; display:flex;}
+
+/* ---------- RANKING ---------- */
+.ranking-box{display:flex; flex-direction:column; gap:12px;}
+.rank-empty{background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:22px 18px; text-align:center; display:flex; flex-direction:column; gap:10px; align-items:center;}
+.rank-empty > b{font-family:var(--font-head); font-size:21px; text-transform:uppercase; color:var(--text);}
+.rank-trophy{width:58px; height:58px; border-radius:50%; background:var(--badge-bg); color:var(--badge-text); display:flex; align-items:center; justify-content:center;}
+.rank-head{display:flex; justify-content:space-between; align-items:center; gap:12px; background:var(--navy); color:#fff; border-radius:14px; padding:14px 16px;}
+.rank-head b{display:block; font-family:var(--font-head); font-size:20px; text-transform:uppercase; letter-spacing:.02em;}
+.rank-head span{font-size:12.5px; color:var(--primary-light);}
+.rank-mine{text-align:right; flex-shrink:0;}
+.rank-mine b{color:var(--hivis); font-size:28px; line-height:1;}
+.rank-settings{display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:space-between; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px;}
+.rank-toggle{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--text); cursor:pointer;}
+.rank-toggle input{width:18px; height:18px; accent-color:var(--hivis-green);}
+.rank-namefield{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-muted);}
+.rank-namefield input{font:inherit; font-size:14px; padding:7px 10px; border-radius:9px; border:1.5px solid var(--border); background:var(--bg); color:var(--text); width:150px; max-width:100%;}
+.rank-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+.rank-list li{display:flex; align-items:center; gap:10px; background:var(--card-bg); border:1px solid var(--border); border-radius:11px; padding:10px 12px; font-variant-numeric:tabular-nums;}
+.rank-list li.me{border-color:var(--hivis-green); background:var(--ok-bg);}
+.rank-pos,.rank-medal{width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:50%; font-weight:800; font-size:13px; color:var(--text-muted);}
+.rank-medal{color:#3a2a00;}
+.rank-medal.m1{background:#F5C518;}
+.rank-medal.m2{background:#C9D1DB; color:#22303f;}
+.rank-medal.m3{background:#D9955B; color:#3a1d05;}
+.rank-name{flex:1; min-width:0; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.rank-name em{font-style:normal; color:var(--text-muted); font-weight:500;}
+.rank-tests{font-size:12px; color:var(--text-muted);}
+.rank-pts{font-family:var(--font-head); font-size:20px; color:var(--text); min-width:38px; text-align:right;}
+.rank-rules{font-size:12px; color:var(--text-muted); text-align:center; line-height:1.4;}
+.home-tabs .home-tab{flex:1 1 auto; min-width:0; padding:10px 6px; font-size:14.5px; letter-spacing:0.01em; white-space:nowrap;}
+.ed-field > span{display:inline-flex; align-items:center; gap:6px;}

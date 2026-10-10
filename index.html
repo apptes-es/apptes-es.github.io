@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#10233D">
+<title>TES Test · Técnico en Emergencias Sanitarias</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+(function(){
+  try{
+    var t = localStorage.getItem('tes_theme_v1');
+    if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
+    if(t === 'dark'){ document.documentElement.setAttribute('data-theme','dark'); }
+  }catch(e){}
+})();
+</script>
+<style>
+:root{
+  --font-head:'Barlow Condensed','Arial Narrow','Roboto Condensed',sans-serif;
+  --font-body:'Barlow',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --navy:#10233D;
+  --navy-2:#173A63;
+  --primary:#1C5FB0;
+  --primary-light:#8CC0F5;
+  --hivis:#F5C518;
+  --hivis-press:#D9AC0A;
+  --hivis-green:#2FA35B;
+  --siren:#E0312B;
+  --bg:#EEF2F7;
+  --card-bg:#FFFFFF;
+  --text:#14202E;
+  --text-muted:#566273;
+  --border:#D9E0EA;
+  --accent-text:#1C5FB0;
+  --ok:#178A4C;
+  --ok-bg:#E2F5E9;
+  --ok-text:#0F5E33;
+  --danger:#C62828;
+  --danger-bg:#FCE6E4;
+  --danger-text:#8E1B1B;
+  --banner-bg:#FFF8DC;
+  --badge-bg:#FFF1C2;
+  --badge-text:#7A5A00;
+  --tap-bg:#E4EAF2;
+  --select-bg:#E3EEFB;
+  color-scheme:light;
+}
+[data-theme="dark"]{
+  --bg:#0B1522;
+  --card-bg:#15233A;
+  --text:#E7EDF5;
+  --text-muted:#98A7BA;
+  --border:#263853;
+  --accent-text:#8CC0F5;
+  --ok:#3DBE77;
+  --ok-bg:#12321F;
+  --ok-text:#86DDA9;
+  --danger:#EF6B5E;
+  --danger-bg:#3A1A18;
+  --danger-text:#F4A89F;
+  --banner-bg:#2A2410;
+  --badge-bg:#3A2F0C;
+  --badge-text:#F2D675;
+  --tap-bg:#1C2D47;
+  --select-bg:#1A3252;
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  min-height:100vh;
+  line-height:1.5;
+  transition:background-color .2s ease, color .2s ease;
+}
+h1,h2,h3{
+  font-family:var(--font-head);
+  font-weight:800;
+  margin:0;
+  letter-spacing:0.01em;
+}
+.app{
+  max-width:640px;
+  margin:0 auto;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  background:var(--bg);
+}
+
+/* ---------- HEADER ---------- */
+.topbar{
+  background:var(--navy);
+  color:#fff;
+  padding:0 18px 6px;
+  height:66px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+/* franja reflectante tipo ambulancia (Battenburg) */
+.topbar::after{
+  content:"";
+  position:absolute; left:0; right:0; bottom:0;
+  height:6px;
+  background:repeating-linear-gradient(90deg, var(--hivis) 0 18px, var(--hivis-green) 18px 36px);
+}
+.topbar .brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  background:none; border:none; color:inherit; padding:0; font:inherit; text-align:left;
+}
+.brand-logo{
+  width:38px; height:38px; border-radius:10px;
+  background:#fff;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.topbar h1{font-size:21px; line-height:1; text-transform:uppercase;}
+.topbar h1 span{color:var(--hivis);}
+.topbar .sub{font-size:12px; color:var(--primary-light); margin-top:3px; line-height:1.2;}
+.theme-toggle{
+  width:36px; height:36px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.12);
+  border:none;
+  color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  flex-shrink:0;
+  transition:background .15s ease, transform .1s ease;
+}
+.theme-toggle:active{transform:scale(0.88); background:rgba(255,255,255,0.22);}
+
+/* ---------- HOME ---------- */
+.home{padding:24px 18px 40px; flex:1;}
+.hero{
+  position:relative;
+  overflow:hidden;
+  background:linear-gradient(155deg, var(--navy) 0%, var(--navy-2) 60%, var(--primary) 130%);
+  color:#fff;
+  border-radius:18px;
+  padding:24px 22px 22px;
+  margin-bottom:18px;
+}
+.hero-ecg{position:absolute; left:0; right:0; top:34px; width:100%; height:60px; opacity:0.1; pointer-events:none;}
+.hero-top{display:flex; align-items:center; gap:14px; position:relative;}
+.hero-top .hero-mascot{flex-shrink:0;}
+.hero h2{font-size:30px; line-height:1.02; text-transform:uppercase; margin-bottom:6px;}
+.hero h2 em{font-style:normal; color:var(--hivis);}
+.hero p{font-size:14.5px; color:#D4E3F5; margin:12px 0 0; position:relative;}
+.stat-row{display:flex; gap:8px; margin-top:18px; position:relative;}
+.stat{
+  background:rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;
+  padding:9px 11px;
+  flex:1;
+}
+.stat b{display:block; font-size:24px; line-height:1.1; font-family:var(--font-head); color:var(--hivis);}
+.stat span{font-size:11.5px; color:#C6D6EA; line-height:1.2; display:block;}
+
+.section-label{
+  font-family:var(--font-head);
+  font-size:15px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--text-muted);
+  margin:26px 0 10px;
+  font-weight:700;
+  display:flex; align-items:center; gap:8px;
+}
+.section-label::before{content:""; width:4px; height:14px; border-radius:2px; background:var(--siren);}
+
+.home-tabs{
+  display:flex;
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:4px;
+  margin:20px 0 4px;
+  gap:4px;
+}
+.home-tab{
+  flex:1;
+  border:none;
+  background:transparent;
+  padding:10px;
+  border-radius:9px;
+  font-family:var(--font-head);
+  font-size:16px;
+  letter-spacing:0.03em;
+  text-transform:uppercase;
+  font-weight:700;
+  color:var(--text-muted);
+  cursor:pointer;
+  transition:background .15s ease, color .15s ease;
+}
+.home-tab.active{background:var(--navy); color:#fff;}
+[data-theme="dark"] .home-tab.active{background:var(--primary);}
+
+.btn-primary{
+  width:100%;
+  background:var(--hivis);
+  color:var(--navy);
+  border:none;
+  border-radius:12px;
+  padding:15px;
+  font-size:18px;
+  font-family:var(--font-head);
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  font-weight:800;
+  cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  box-shadow:0 3px 0 var(--hivis-press);
+  transition:transform .08s ease, box-shadow .08s ease, background .15s ease;
+}
+.btn-primary:active{transform:translateY(2px); box-shadow:0 1px 0 var(--hivis-press);}
+
+/* ---------- TARJETAS DE ASIGNATURA ---------- */
+.subject-list{display:flex; flex-direction:column; gap:10px;}
+.subject-card{
+  position:relative;
+  display:flex; align-items:center; gap:14px;
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px 14px 14px 18px;
+  cursor:pointer;
+  width:100%;
+  text-align:left;
+  font-family:inherit;
+  color:var(--text);
+  overflow:hidden;
+  transition:transform .1s ease, border-color .15s ease;
+}
+.subject-card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background:var(--sc);}
+.subject-card:active{transform:scale(0.985);}
+.subject-card:focus-visible{outline:2px solid var(--accent-text); outline-offset:2px;}
+.sc-icon{
+  width:46px; height:46px; border-radius:12px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--sc) 14%, transparent);
+  color:var(--sc);
+}
+.sc-body{flex:1; min-width:0;}
+.sc-body b{display:block; font-size:15.5px; line-height:1.25;}
+.sc-body span{font-size:12.5px; color:var(--text-muted);}
+.sc-meter{height:5px; background:var(--border); border-radius:4px; overflow:hidden; margin-top:7px;}
+.sc-meter div{height:100%; background:var(--sc); border-radius:4px;}
+.sc-arrow{color:var(--text-muted); flex-shrink:0;}
+
+/* cabecera de asignatura */
+.back-link{
+  display:inline-flex; align-items:center; gap:4px;
+  background:none; border:none; padding:4px 0; margin-bottom:12px;
+  color:var(--accent-text); font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;
+}
+.subject-hero{
+  position:relative; overflow:hidden;
+  background:linear-gradient(155deg, var(--navy) 0%, var(--navy-2) 70%);
+  border-radius:18px;
+  padding:20px 20px 18px;
+  color:#fff;
+  margin-bottom:18px;
+}
+.subject-hero::before{content:""; position:absolute; left:0; top:0; bottom:0; width:8px; background:var(--sc);}
+.subject-hero .sh-top{display:flex; align-items:center; gap:12px;}
+.subject-hero .sc-icon{background:rgba(255,255,255,0.12); color:#fff;}
+.subject-hero h2{font-size:25px; line-height:1.05; text-transform:uppercase;}
+
+.exam-list{display:flex; flex-direction:column; gap:8px;}
+.history{display:flex; flex-direction:column; gap:8px;}
+.history-item{
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:11px 14px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  font-size:13.5px;
+}
+.history-item .score{font-weight:800; font-family:var(--font-head); font-size:19px; white-space:nowrap;}
+.history-item .score.pass{color:var(--ok);}
+.history-item .score.fail{color:var(--danger);}
+.empty-hint{color:var(--text-muted); font-size:13.5px; font-style:italic;}
+
+/* ---------- QUIZ ---------- */
+.quiz{flex:1; display:flex; flex-direction:column; padding:0 0 30px;}
+.progress-wrap{
+  padding:14px 18px 6px;
+  background:var(--bg);
+  position:sticky;
+  top:66px;
+  z-index:9;
+}
+.progress-bar{height:8px; background:var(--border); border-radius:5px; overflow:hidden;}
+.progress-fill{
+  height:100%;
+  background:repeating-linear-gradient(90deg, var(--hivis) 0 10px, var(--hivis-green) 10px 20px);
+  transition:width .25s ease;
+}
+.progress-text{font-size:12.5px; color:var(--text-muted); margin-top:6px; display:flex; justify-content:space-between;}
+
+.q-card{
+  margin:14px 18px 0;
+  background:var(--card-bg);
+  border-radius:16px;
+  padding:20px 18px;
+  border:1px solid var(--border);
+  border-top:4px solid var(--sc, var(--primary));
+}
+.q-card-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;}
+.q-tag{
+  font-family:var(--font-head);
+  font-size:13.5px;
+  color:var(--sc, var(--accent-text));
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  line-height:1.2;
+}
+[data-theme="dark"] .q-tag{filter:brightness(1.35);}
+.q-tag small{display:block; color:var(--text-muted); font-family:var(--font-body); text-transform:none; letter-spacing:0; font-size:12px; font-weight:500;}
+.mascot{display:flex; flex-shrink:0;}
+@keyframes mascotReact{
+  0%{transform:scale(0.7) rotate(-6deg);}
+  55%{transform:scale(1.18) rotate(4deg);}
+  100%{transform:scale(1) rotate(0);}
+}
+.mascot.react{animation:mascotReact .35s cubic-bezier(.3,1.4,.4,1);}
+@keyframes sirenFlash{0%,100%{opacity:1;} 50%{opacity:0.25;}}
+.siren-a{animation:sirenFlash .5s infinite;}
+.siren-b{animation:sirenFlash .5s infinite .25s;}
+@keyframes wobble{0%,100%{transform:rotate(0);} 25%{transform:rotate(-3deg);} 75%{transform:rotate(3deg);}}
+.mascot-idle{animation:wobble 3s ease-in-out infinite; transform-origin:50% 90%;}
+
+.q-text{font-size:18px; font-weight:600; line-height:1.4; color:var(--text); margin-bottom:18px;}
+.options{display:flex; flex-direction:column; gap:10px;}
+.option{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  background:var(--bg);
+  border:1.5px solid var(--border);
+  border-radius:11px;
+  padding:13px 14px;
+  font-size:15px;
+  cursor:pointer;
+  transition:border-color .12s ease, background .12s ease;
+  width:100%;
+  text-align:left;
+  font-family:inherit;
+  color:var(--text);
+  -webkit-appearance:none;
+  appearance:none;
+}
+.option:focus-visible{outline:2px solid var(--accent-text); outline-offset:2px;}
+.option:disabled{cursor:default;}
+.option:active{background:var(--tap-bg);}
+.option .letter{
+  flex:0 0 27px;
+  height:27px;
+  border-radius:8px;
+  background:var(--border);
+  color:var(--accent-text);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  font-size:15px;
+  font-family:var(--font-head);
+}
+.option.selected{border-color:var(--primary); background:var(--select-bg);}
+.option.selected .letter{background:var(--primary); color:#fff;}
+.option.correct{border-color:var(--ok); background:var(--ok-bg);}
+.option.correct .letter{background:var(--ok); color:#fff;}
+.option.incorrect{border-color:var(--danger); background:var(--danger-bg);}
+.option.incorrect .letter{background:var(--danger); color:#fff;}
+.option.disabled{cursor:default;}
+
+.feedback{
+  margin-top:14px;
+  padding:10px 14px;
+  border-radius:10px;
+  font-size:14px;
+  font-weight:500;
+  display:none;
+}
+.feedback.show{display:flex; gap:8px; align-items:flex-start;}
+.feedback.show svg{flex-shrink:0; margin-top:3px;}
+.feedback.ok{background:var(--ok-bg); color:var(--ok-text);}
+.feedback.no{background:var(--danger-bg); color:var(--danger-text);}
+
+@keyframes comboPop{0%{opacity:0; transform:translateY(4px) scale(0.9);} 100%{opacity:1; transform:translateY(0) scale(1);}}
+.combo-badge{
+  display:inline-flex; align-items:center; gap:6px;
+  margin-top:8px;
+  padding:5px 12px;
+  border-radius:20px;
+  background:var(--hivis);
+  color:var(--navy);
+  font-size:13px;
+  font-weight:700;
+  animation:comboPop .25s ease;
+}
+
+.nav-buttons{display:flex; gap:10px; margin:18px 18px 0;}
+.btn-secondary{
+  flex:1;
+  background:transparent;
+  border:1.5px solid var(--border);
+  color:var(--text);
+  border-radius:11px;
+  padding:13px;
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+  font-family:inherit;
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+}
+.btn-secondary:disabled{opacity:0.35; cursor:default;}
+.nav-buttons .btn-primary{flex:1; padding:12px; font-size:17px;}
+
+/* dot nav */
+.dotnav{display:flex; flex-wrap:wrap; gap:6px; margin:16px 18px 0;}
+.dot{
+  width:28px; height:28px;
+  border-radius:8px;
+  border:1.5px solid var(--border);
+  background:var(--card-bg);
+  font-size:13px;
+  color:var(--text-muted);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  font-family:var(--font-head);
+  font-weight:700;
+  padding:0;
+  -webkit-appearance:none;
+  appearance:none;
+}
+.dot:focus-visible{outline:2px solid var(--accent-text); outline-offset:2px;}
+.dot.current{border-color:var(--accent-text); border-width:2px;}
+.dot.answered-ok{background:var(--ok); color:#fff; border-color:var(--ok);}
+.dot.answered-no{background:var(--danger); color:#fff; border-color:var(--danger);}
+
+/* ---------- RESULTS ---------- */
+.results{padding:24px 18px 40px;}
+.result-hero{
+  position:relative;
+  overflow:hidden;
+  text-align:center;
+  padding:26px 20px 28px;
+  border-radius:18px;
+  margin-bottom:20px;
+}
+.result-hero.pass{background:linear-gradient(160deg,#0C4F2C,#178A4C); color:#fff;}
+.result-hero.fail{background:linear-gradient(160deg,#6E1414,#C62828); color:#fff;}
+.result-hero .rh-mascot{position:relative; z-index:1; display:flex; justify-content:center; margin-bottom:6px;}
+.result-hero .big-score{font-size:60px; line-height:1; font-family:var(--font-head); font-weight:800; position:relative; z-index:1;}
+.result-hero .big-label{font-size:14px; opacity:0.92; margin-top:4px; position:relative; z-index:1;}
+.result-hero .rh-msg{font-size:14.5px; margin:10px auto 0; max-width:420px; position:relative; z-index:1;}
+.result-hero .verdict{
+  display:inline-flex; align-items:center; gap:6px;
+  margin-top:14px;
+  padding:6px 16px;
+  border-radius:20px;
+  background:rgba(255,255,255,0.2);
+  font-family:var(--font-head);
+  font-size:16px;
+  letter-spacing:0.05em;
+  font-weight:700;
+  position:relative;
+  z-index:1;
+}
+
+.confetti-wrap{position:absolute; inset:0; pointer-events:none;}
+.confetti-piece{
+  position:absolute;
+  top:-12px;
+  width:7px; height:12px;
+  border-radius:1px;
+  opacity:0.95;
+  animation-name:confettiFall;
+  animation-timing-function:ease-in;
+  animation-fill-mode:forwards;
+}
+@keyframes confettiFall{
+  0%{transform:translateY(0) rotate(0deg); opacity:1;}
+  100%{transform:translateY(190px) rotate(340deg); opacity:0;}
+}
+
+@keyframes celebrateIn{from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);}}
+.celebrate-banner{
+  display:flex; align-items:center; gap:8px;
+  background:var(--hivis);
+  color:var(--navy);
+  border-radius:12px;
+  padding:12px 14px;
+  font-size:14px;
+  font-weight:700;
+  margin-bottom:10px;
+  animation:celebrateIn .3s ease;
+}
+
+@keyframes legendaryIn{
+  0%{opacity:0; transform:scale(0.85) translateY(10px);}
+  60%{transform:scale(1.03);}
+  100%{opacity:1; transform:scale(1) translateY(0);}
+}
+.legendary-banner{
+  position:relative;
+  overflow:hidden;
+  text-align:center;
+  background:linear-gradient(160deg, #8B6914, #D9A227 45%, #F0C860);
+  border-radius:18px;
+  padding:26px 20px;
+  margin-bottom:16px;
+  animation:legendaryIn .5s cubic-bezier(.22,.9,.3,1.2);
+}
+.legendary-icon{
+  position:relative; z-index:1;
+  width:56px; height:56px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.35);
+  color:#3A2C05;
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto 10px;
+}
+.legendary-banner b{
+  position:relative; z-index:1;
+  display:block;
+  font-family:var(--font-head);
+  font-size:24px;
+  letter-spacing:0.03em;
+  color:#3A2C05;
+  margin-bottom:8px;
+}
+.legendary-banner span{position:relative; z-index:1; display:block; font-size:13.5px; line-height:1.5; color:#4A3A0A;}
+.reward-btn{
+  position:relative; z-index:1;
+  display:inline-flex; align-items:center; gap:6px;
+  margin-top:14px;
+  background:#3A2C05;
+  color:#F0C860;
+  text-decoration:none;
+  padding:10px 18px;
+  border-radius:24px;
+  font-size:13px;
+  font-weight:700;
+  font-family:inherit;
+}
+.reward-btn:active{opacity:0.85;}
+
+/* ---------- LOGROS ---------- */
+.record-card{
+  display:flex; align-items:center; gap:14px;
+  background:linear-gradient(155deg, var(--navy), var(--navy-2));
+  color:#fff;
+  border-radius:16px;
+  padding:16px 18px;
+}
+.record-icon{
+  flex:0 0 auto;
+  width:46px; height:46px;
+  border-radius:50%;
+  background:var(--hivis);
+  color:var(--navy);
+  display:flex; align-items:center; justify-content:center;
+}
+.record-card b{display:block; font-size:30px; font-family:var(--font-head); line-height:1; color:var(--hivis);}
+.record-card span{font-size:13px; color:#C6D6EA;}
+.achv-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.achv-item{
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:14px 10px;
+  text-align:center;
+}
+.achv-item .achv-icon{
+  width:44px; height:44px; margin:0 auto 6px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--badge-bg); color:var(--badge-text);
+}
+.achv-item.locked{opacity:0.45;}
+.achv-item.locked .achv-icon{background:var(--border); color:var(--text-muted);}
+.achv-item b{display:block; font-size:13.5px; margin-bottom:3px;}
+.achv-item span{font-size:11.5px; color:var(--text-muted); line-height:1.3; display:block;}
+.achv-item.legendary{grid-column:1/-1; border:1.5px solid #D9A227;}
+.achv-item.legendary .achv-icon{color:#B8860B;}
+.achv-item.legendary:not(.locked){background:linear-gradient(160deg, #8B6914, #D9A227 45%, #F0C860);}
+.achv-item.legendary:not(.locked) .achv-icon{color:#3A2C05; background:rgba(255,255,255,0.35);}
+.achv-item.legendary:not(.locked) b{color:#3A2C05;}
+.achv-item.legendary:not(.locked) span{color:#4A3A0A;}
+
+.review-item{
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-left:4px solid var(--sc, var(--danger));
+  border-radius:12px;
+  padding:14px 16px;
+  margin-bottom:10px;
+}
+.review-item .rq{font-size:14.5px; font-weight:600; margin-bottom:10px;}
+.review-item .ra{font-size:13.5px; padding:8px 10px; border-radius:8px; margin-bottom:6px;}
+.review-item .ra.user-wrong{background:var(--danger-bg); color:var(--danger-text);}
+.review-item .ra.correct-ans{background:var(--ok-bg); color:var(--ok-text);}
+.review-tag{font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; font-weight:600;}
+
+.btn-pdf{
+  width:100%; margin:-6px 0 18px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background:var(--card-bg); color:var(--text);
+  border:1.5px solid var(--border); border-radius:12px;
+  padding:13px 14px; font-family:inherit; font-size:15px; font-weight:700; cursor:pointer;
+}
+.btn-pdf:active{background:var(--tap-bg);}
+.sim-hint{font-size:12.5px; color:var(--text-muted); text-align:center; margin:8px 4px 0;}
+.bottom-actions{display:flex; gap:10px; margin-top:24px; flex-wrap:wrap;}
+.bottom-actions button{flex:1 1 140px; width:auto;}
+
+footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:20px;}
+
+.brand-footer{
+  text-align:center;
+  font-family:var(--font-head);
+  font-size:13px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  padding:16px 40px 22px;
+  border-top:1px solid var(--border);
+  font-weight:700;
+  position:relative;
+}
+.debug-link{
+  position:absolute;
+  right:14px;
+  top:50%;
+  transform:translateY(-50%);
+  width:22px; height:22px;
+  border:none;
+  background:transparent;
+  color:var(--border);
+  font-size:16px;
+  line-height:1;
+  cursor:pointer;
+  padding:0;
+}
+
+/* ---------- CONTINUAR TEST ---------- */
+.continue-banner{
+  background:var(--banner-bg);
+  border:1.5px solid var(--hivis);
+  border-radius:14px;
+  padding:14px 16px;
+  margin-bottom:18px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.continue-banner .cb-text{font-size:14px; color:var(--text);}
+.continue-banner .cb-actions{display:flex; gap:10px;}
+.continue-banner .cb-actions button{flex:1; font-size:15px; padding:11px;}
+
+/* ---------- MODO CRONOMETRADO ---------- */
+.mode-toggle{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(255,255,255,0.1);
+  border-radius:10px;
+  padding:10px 12px;
+  margin-top:14px;
+  font-size:13.5px;
+  color:#D4E3F5;
+  cursor:pointer;
+}
+.mode-toggle input{width:17px; height:17px; accent-color:var(--hivis);}
+
+/* ---------- PRACTICAR POR TEMA ---------- */
+.exam-practice-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  background:var(--card-bg);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:12px 14px;
+  margin-bottom:8px;
+}
+.exam-practice-item .epi-info b{display:block; color:var(--text); font-size:14.5px; line-height:1.3;}
+.exam-practice-item .epi-info span{font-size:12.5px; color:var(--text-muted);}
+.btn-mini{
+  background:var(--navy);
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  padding:9px 14px;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  font-family:inherit;
+  white-space:nowrap;
+}
+[data-theme="dark"] .btn-mini{background:var(--primary);}
+
+/* ---------- ESTADÍSTICAS ---------- */
+.stats-list{display:flex; flex-direction:column; gap:8px;}
+.stats-item{background:var(--card-bg); border:1px solid var(--border); border-radius:10px; padding:12px 14px;}
+.stats-item .si-top{display:flex; justify-content:space-between; gap:10px; font-size:13.5px; margin-bottom:6px;}
+.stats-item .si-top b{color:var(--text);}
+.stats-bar{height:7px; background:var(--border); border-radius:4px; overflow:hidden;}
+.stats-bar-fill{height:100%; background:var(--ok);}
+.stats-bar-fill.low{background:var(--danger);}
+
+/* ---------- TEMPORIZADOR ---------- */
+.timer{font-size:13px; font-weight:700; color:var(--accent-text); font-family:var(--font-head);}
+.timer.warn{color:var(--danger);}
+
+/* ---------- AVISO RESPUESTA NO VERIFICADA ---------- */
+.unverified-badge{
+  display:inline-block;
+  margin-bottom:10px;
+  padding:4px 10px;
+  border-radius:20px;
+  background:var(--badge-bg);
+  color:var(--badge-text);
+  font-size:11.5px;
+  font-weight:600;
+}
+
+/* ---------------- MOVIMIENTO ---------------- */
+@keyframes pop{0%{transform:scale(0.65);} 65%{transform:scale(1.15);} 100%{transform:scale(1);}}
+.option.correct .letter, .option.incorrect .letter{animation:pop .28s ease;}
+@keyframes shake{
+  10%,90%{transform:translateX(-1px);}
+  20%,80%{transform:translateX(2px);}
+  30%,50%,70%{transform:translateX(-4px);}
+  40%,60%{transform:translateX(4px);}
+}
+.option.incorrect{animation:shake .4s ease;}
+@keyframes feedbackIn{from{opacity:0; transform:translateY(-5px);} to{opacity:1; transform:translateY(0);}}
+.feedback.show{animation:feedbackIn .22s ease;}
+@keyframes cardIn{from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:translateY(0);}}
+.q-card{animation:cardIn .18s ease;}
+@keyframes scoreIn{from{opacity:0; transform:scale(0.94);} to{opacity:1; transform:scale(1);}}
+.result-hero{animation:scoreIn .32s cubic-bezier(.22,.8,.32,1);}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:0.001s !important; animation-iteration-count:1 !important; transition-duration:0.001s !important;}
+}
+@media (max-width:380px){
+  .q-text{font-size:16.5px;}
+  .hero h2{font-size:25px;}
+  .topbar h1{font-size:18px;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button type="button" class="brand" onclick="renderHome()" aria-label="Ir al inicio">
+      <span class="brand-logo" id="brandLogo"></span>
+      <div>
+        <h1>TES <span>Test</span></h1>
+        <div class="sub" id="topbarSub">Técnico en Emergencias Sanitarias</div>
+      </div>
+    </button>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Cambiar tema" title="Cambiar tema">
+      <span id="themeIcon"></span>
+    </button>
+  </div>
+
+  <div id="screen"></div>
+
+  <div class="brand-footer">
+    Técnico en Emergencias Sanitarias
+    <button type="button" class="debug-link" onclick="openDebugMode()" aria-label="Modo depuración">·</button>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+/* ---------------- ESTADO ---------------- */
+let currentTest = null; // {mode, subject, label, questions:[...], answers:[...], timed, endTime}
+let currentIndex = 0;
+let timerInterval = null;
+let lastWrongIds = [];
+let homeTab = 'asignaturas';   // 'asignaturas' | 'progreso'
+let subjectTab = 'practicar';  // 'practicar' | 'progreso'
+let currentSubjectId = null;
+
+const HISTORY_KEY = 'tes_test_history_v1';
+const PROGRESS_KEY = 'tes_test_progress_v1';
+const THEME_KEY = 'tes_theme_v1';
+const FAILED_KEY = 'tes_failed_ids_v1';
+const MASTERY_KEY = 'tes_mastered_ids_v1';
+// Tamaño de los simulacros de cada asignatura: entre 30 y 50.
+// Si el banco aún no tiene tantas preguntas, el test usa todas las disponibles.
+const TEST_SIZE = 40;
+const SEEN_KEY = 'tes_seen_v1';        // última vez que salió cada pregunta
+const RECENT_KEY = 'tes_recent_tests_v1'; // preguntas de los 2 últimos tests aleatorios de cada asignatura
+const LETTERS = ['A','B','C','D'];
+const PASS_RATIO = 0.5;
+const TIMED_SECONDS = 45 * 60; // 45 minutos en modo cronometrado
+
+function passScoreFor(total){ return Math.ceil(total * PASS_RATIO); }
+
+/* ---------------- ASIGNATURAS ---------------- */
+function getSubject(id){ return SUBJECTS.find(s=>s.id===id) || {id, name:id||'Sin asignatura', short:id||'—', icon:'book', color:'#1C5FB0'}; }
+function questionsOf(subjectId){ return QUESTIONS.filter(q=>q.subject===subjectId); }
+function temasOf(subjectId){
+  const out = [];
+  questionsOf(subjectId).forEach(q=>{ if(!out.includes(q.exam)) out.push(q.exam); });
+  return out;
+}
+function subjectMastery(subjectId){
+  const qs = questionsOf(subjectId);
+  if(!qs.length) return 0;
+  const m = new Set(loadMasteredIds());
+  return Math.round(qs.filter(q=>m.has(q.id)).length / qs.length * 100);
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- FRASES DE REFUERZO ---------------- */
+const CORRECT_PHRASES = [
+  '¡Más acertado que un catéter bien puesto!',
+  '¡Más fino que una vía cogida a la primera!',
+  '¡Correcto! Eso ha sido un 15 en la escala de Glasgow.',
+  '¡Dentro! Más preciso que un pulsioxímetro recién estrenado.',
+  '¡Toma ya! Más estable que un paciente en el colchón de vacío.',
+  '¡Acierto! El DEA analiza... no se recomienda descarga, estás perfecto.',
+  '¡Correcto! Ni el médico del SAMU lo clava así.',
+  '¡Eso es! Constantes vitales de campeón.',
+  '¡Bien! Triaje en verde: tú solito caminas hacia el aprobado.',
+  '¡Perfecto! Más rápido que la ambulancia con la sirena puesta.',
+  '¡Olé! Más bien colocado que un collarín cervical.',
+  '¡Correcto! Saturando al 100% sin gafas nasales.'
+];
+const INCORRECT_TEMPLATES = [
+  'Vía fallida, toca pinchar otra vez. Era la {L}.',
+  'Uy, eso ha sido un Glasgow de 3. La correcta era la {L}.',
+  'Esa respuesta ha entrado en parada. La buena era la {L}.',
+  'Más perdido que una ambulancia sin GPS. Era la {L}.',
+  'Error de triaje: esa iba directa a tarjeta negra. Era la {L}.',
+  'Te has ido con la sirena puesta a la dirección equivocada. Era la {L}.',
+  'Se te ha soltado el torniquete. La correcta era la {L}.',
+  'Saturación bajando... la buena era la {L}.',
+  'Esa respuesta necesita oxígeno a alto flujo. Era la {L}.',
+  'Tranquilo, esto se reanima. La correcta era la {L}.'
+];
+function pickPhrase(correct, correctLetter){
+  if(correct) return CORRECT_PHRASES[Math.floor(Math.random()*CORRECT_PHRASES.length)];
+  const t = INCORRECT_TEMPLATES[Math.floor(Math.random()*INCORRECT_TEMPLATES.length)];
+  return t.replace('{L}', correctLetter);
+}
+function resultMessage(pct){
+  if(pct === 100) return 'Turno perfecto. Todos los pacientes atendidos y ni una incidencia.';
+  if(pct >= 85) return 'Guardia de lujo. Estás para salir en la próxima dotación.';
+  if(pct >= 70) return 'Muy buena intervención. Unos ajustes y quedas de diez.';
+  if(pct >= 50) return 'Aviso resuelto. Repasa las falladas para llegar con más margen.';
+  if(pct >= 30) return 'Paciente estable, pero hay que reforzar. Repasa y vuelve a intentarlo.';
+  return 'Toca volver a la base a repasar. Cada test te deja más preparado.';
+}
+
+/* ---------------- MASCOTA: "Ambu", la ambulancia ---------------- */
+function mascotSVG(state, size){
+  size = size || 34;
+  const navy = '#10233D';
+  const sirenOn = state === 'happy';
+  const sirenCol = state === 'sad' ? '#9AA6B6' : '#2F8CFF';
+  const sirenCol2 = state === 'sad' ? '#9AA6B6' : '#E0312B';
+  let eyes, mouth, extra = '';
+  if(state === 'happy'){
+    eyes = `<path d="M11 33.5Q14 29.5 17 33.5" fill="none" stroke="${navy}" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M31 33.5Q34 29.5 37 33.5" fill="none" stroke="${navy}" stroke-width="2.2" stroke-linecap="round"/>`;
+    mouth = `<path d="M19.5 35Q24 40.5 28.5 35Z" fill="${navy}"/><path d="M21.5 37.4Q24 39 26.5 37.4" fill="none" stroke="#E0312B" stroke-width="1.4" stroke-linecap="round"/>`;
+    extra = `<circle cx="10" cy="37.5" r="1.8" fill="#FF8A8A" opacity=".55"/><circle cx="38" cy="37.5" r="1.8" fill="#FF8A8A" opacity=".55"/>`;
+  } else if(state === 'sad'){
+    eyes = `<circle cx="14" cy="33" r="3.4" fill="#fff" stroke="${navy}" stroke-width="1.4"/><circle cx="14" cy="34" r="1.5" fill="${navy}"/>
+            <circle cx="34" cy="33" r="3.4" fill="#fff" stroke="${navy}" stroke-width="1.4"/><circle cx="34" cy="34" r="1.5" fill="${navy}"/>
+            <path d="M10.5 28.8L17 30.4M37.5 28.8L31 30.4" stroke="${navy}" stroke-width="1.6" stroke-linecap="round"/>`;
+    mouth = `<path d="M20.5 38.5Q24 35.5 27.5 38.5" fill="none" stroke="${navy}" stroke-width="2" stroke-linecap="round"/>`;
+    extra = `<path d="M40.5 17Q42.5 20.5 40.5 22Q38.5 20.5 40.5 17Z" fill="#6FB6FF"/>`;
+  } else {
+    eyes = `<circle cx="14" cy="33" r="3.4" fill="#fff" stroke="${navy}" stroke-width="1.4"/><circle cx="14.4" cy="33" r="1.6" fill="${navy}"/>
+            <circle cx="34" cy="33" r="3.4" fill="#fff" stroke="${navy}" stroke-width="1.4"/><circle cx="34.4" cy="33" r="1.6" fill="${navy}"/>`;
+    mouth = `<path d="M21 37.2Q24 38.8 27 37.2" fill="none" stroke="${navy}" stroke-width="2" stroke-linecap="round"/>`;
+  }
+  // franja reflectante (cuadros verde/amarillo)
+  let checks = '';
+  for(let i=0;i<9;i++){
+    checks += `<rect x="${6+i*4}" y="25" width="4" height="4" fill="${i%2? '#2FA35B':'#F5C518'}"/>`;
+  }
+  const rays = sirenOn ? `<g stroke="#2F8CFF" stroke-width="1.6" stroke-linecap="round" class="siren-a"><path d="M13 5L10 3"/><path d="M12 8.5H8.5"/></g>
+                          <g stroke="#E0312B" stroke-width="1.6" stroke-linecap="round" class="siren-b"><path d="M35 5L38 3"/><path d="M36 8.5H39.5"/></g>` : '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
+    ${rays}
+    <rect x="16" y="4.5" width="8" height="6" rx="2" fill="${sirenCol}" class="${sirenOn?'siren-a':''}"/>
+    <rect x="24" y="4.5" width="8" height="6" rx="2" fill="${sirenCol2}" class="${sirenOn?'siren-b':''}"/>
+    <rect x="9" y="41" width="7" height="5" rx="1.5" fill="${navy}"/>
+    <rect x="32" y="41" width="7" height="5" rx="1.5" fill="${navy}"/>
+    <rect x="5" y="10" width="38" height="33" rx="8" fill="#FFFFFF" stroke="${navy}" stroke-width="2"/>
+    <rect x="9.5" y="13.5" width="29" height="10" rx="3" fill="#BFE0FF" stroke="${navy}" stroke-width="1.4"/>
+    <path d="M13 16L17 16" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".9"/>
+    ${checks}
+    <circle cx="24" cy="27" r="4.2" fill="#fff" stroke="${navy}" stroke-width="1"/>
+    <path d="M24 24.4V29.6M21.4 27H26.6" stroke="#E0312B" stroke-width="1.9" stroke-linecap="round"/>
+    ${eyes}${mouth}${extra}
+  </svg>`;
+}
+function starOfLifeSVG(size){
+  size = size || 26;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">
+    <g fill="#1C5FB0">
+      <rect x="9.6" y="1.5" width="4.8" height="21" rx="1"/>
+      <rect x="9.6" y="1.5" width="4.8" height="21" rx="1" transform="rotate(60 12 12)"/>
+      <rect x="9.6" y="1.5" width="4.8" height="21" rx="1" transform="rotate(120 12 12)"/>
+    </g>
+    <path d="M12 5V19.5" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M13.6 7.2C10.6 8 10.6 10 12 10.8C13.6 11.7 13.6 13.6 12 14.4C10.6 15.1 10.8 16.6 12.6 17.2" fill="none" stroke="#fff" stroke-width="1.1" stroke-linecap="round"/>
+  </svg>`;
+}
+function ecgSVG(){
+  return `<svg class="hero-ecg" viewBox="0 0 400 60" preserveAspectRatio="none" aria-hidden="true">
+    <polyline fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" points="0,35 60,35 72,35 80,28 88,35 100,35 108,42 116,5 126,56 134,35 150,35 162,30 176,35 230,35 242,35 250,28 258,35 270,35 278,42 286,5 296,56 304,35 320,35 332,30 346,35 400,35"/>
+  </svg>`;
+}
+
+/* ---------------- ICONOS ---------------- */
+const ICON_PATHS = {
+  warning: '<path d="M12 3L2 21H22L12 3Z"/><path d="M12 9V14"/><circle cx="12" cy="17.3" r="0.6" fill="currentColor" stroke="none"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7V12L15.5 14"/>',
+  check: '<path d="M4 12L9.5 17.5L20 6"/>',
+  cross: '<path d="M5 5L19 19M19 5L5 19"/>',
+  chevronLeft: '<path d="M15 5L8 12L15 19"/>',
+  chevronRight: '<path d="M9 5L16 12L9 19"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4A6.5 6.5 0 0 0 20 14.5Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2V4M12 20V22M4 12H2M22 12H20M4.9 4.9L6.3 6.3M17.7 17.7L19.1 19.1M4.9 19.1L6.3 17.7M17.7 6.3L19.1 4.9"/>',
+  award: '<circle cx="12" cy="8" r="5"/><path d="M8.5 12.5L7 21L12 18L17 21L15.5 12.5"/>',
+  pulse: '<path d="M2 12H6L8.5 6L12.5 18L15 10L16.5 12H22"/>',
+  heart: '<path d="M12 20.5C12 20.5 3 15 3 8.8C3 6 5.2 4 7.8 4C9.6 4 11.2 5 12 6.5C12.8 5 14.4 4 16.2 4C18.8 4 21 6 21 8.8C21 15 12 20.5 12 20.5Z"/>',
+  truck: '<path d="M2 16V6.5C2 5.7 2.7 5 3.5 5H14V16"/><path d="M14 9H18L21.5 12.5V16H14"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/><path d="M8 9.5H10M9 8.5V10.5" stroke-width="2"/>',
+  chat: '<path d="M4 5H20V15H10L5 19V15H4Z"/><path d="M12 12.2C12 12.2 9 10.4 9 8.7C9 7.9 9.6 7.3 10.4 7.3C11 7.3 11.6 7.6 12 8.2C12.4 7.6 13 7.3 13.6 7.3C14.4 7.3 15 7.9 15 8.7C15 10.4 12 12.2 12 12.2Z"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5.5C9 4.7 9.7 4 10.5 4H13.5C14.3 4 15 4.7 15 5.5V7"/><path d="M3 12.5H21"/>',
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20H16M12 16V20"/><path d="M7 12L10 9L12.5 11L16.5 7.5"/>',
+  book: '<path d="M4 5C4 4.4 4.4 4 5 4H11V20H5C4.4 20 4 19.6 4 19Z"/><path d="M20 5C20 4.4 19.6 4 19 4H13V20H19C19.6 20 20 19.6 20 19Z"/>',
+  siren: '<path d="M6 18V12C6 8.7 8.7 6 12 6C15.3 6 18 8.7 18 12V18"/><path d="M4 18H20V21H4Z"/><path d="M12 2V3.5M4.2 5.2L5.3 6.3M19.8 5.2L18.7 6.3"/>',
+  shield: '<path d="M12 3L20 6V12C20 16.5 16.5 20 12 21C7.5 20 4 16.5 4 12V6Z"/><path d="M12 8.5V15.5M8.5 12H15.5"/>',
+  route: '<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18H15.5C17.4 18 18.5 16.8 18.5 15.3C18.5 13.8 17.4 12.5 15.5 12.5H8.5C6.6 12.5 5.5 11.2 5.5 9.7C5.5 8.2 6.6 7 8.5 7H15.8"/>',
+  medal: '<path d="M8 3L12 10L16 3"/><circle cx="12" cy="15" r="6"/><path d="M12 12.3V17.7M9.3 15H14.7"/>',
+  download: '<path d="M12 3V15"/><path d="M7 10L12 15L17 10"/><path d="M4 17V20H20V17"/>',
+  flame: '<path d="M12 21C8 21 6 18 6 15C6 11 9 9 9 6C9 4 8 3 8 3C13 4 14 9 12 11C14 10 15 8 15 6C17 8 18 11 18 14C18 18 16 21 12 21Z"/>'
+};
+function icon(name, size){
+  size = size || 16;
+  const d = ICON_PATHS[name] || '';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px" aria-hidden="true">${d}</svg>`;
+}
+function confettiHtml(count){
+  const colors = ['#F5C518','#2FA35B','#2F8CFF','#E0312B','#FFFFFF'];
+  let out = '<div class="confetti-wrap">';
+  for(let i=0;i<count;i++){
+    const left = Math.round(Math.random()*100);
+    const delay = (Math.random()*0.35).toFixed(2);
+    const dur = (0.9+Math.random()*0.8).toFixed(2);
+    const color = colors[i % colors.length];
+    const rot = Math.floor(Math.random()*360);
+    out += `<span class="confetti-piece" style="left:${left}%; background:${color}; animation-delay:${delay}s; animation-duration:${dur}s; transform:rotate(${rot}deg);"></span>`;
+  }
+  return out + '</div>';
+}
+
+/* ---------------- TEMA (claro/oscuro) ---------------- */
+function currentTheme(){
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+function applyThemeIcon(){
+  const el = document.getElementById('themeIcon');
+  if(el) el.innerHTML = icon(currentTheme() === 'dark' ? 'sun' : 'moon', 18);
+}
+function toggleTheme(){
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  if(next === 'dark') document.documentElement.setAttribute('data-theme','dark');
+  else document.documentElement.removeAttribute('data-theme');
+  try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+  applyThemeIcon();
+}
+
+/* ---------------- UTIL ---------------- */
+function safeGetJSON(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if(raw === null) return fallback;
+    const v = JSON.parse(raw);
+    return v === null || v === undefined ? fallback : v;
+  }catch(e){ return fallback; }
+}
+function safeSetJSON(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch(e){ return false; }
+}
+function safeRemove(key){ try{ localStorage.removeItem(key); }catch(e){} }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+function findQuestionById(id){ return QUESTIONS.find(q=>q.id===id); }
+
+/* ---------------- HISTORIAL ---------------- */
+function loadHistory(){ return safeGetJSON(HISTORY_KEY, []); }
+function saveHistoryEntry(entry){
+  const h = loadHistory();
+  h.unshift(entry);
+  safeSetJSON(HISTORY_KEY, h.slice(0,80));
+}
+// Agrega aciertos por clave a partir del campo "field" de cada entrada del historial
+function aggregate(history, field, filterFn){
+  const agg = {};
+  history.forEach(h=>{
+    const b = h[field];
+    if(!b) return;
+    Object.keys(b).forEach(k=>{
+      if(filterFn && !filterFn(k)) return;
+      if(!agg[k]) agg[k] = {correct:0, total:0};
+      agg[k].correct += b[k].correct;
+      agg[k].total += b[k].total;
+    });
+  });
+  return agg;
+}
+
+/* ---------------- BANCO DE FALLADAS (persistente) ---------------- */
+function loadFailedIds(){
+  // Se descartan ids que ya no existen en el banco
+  return safeGetJSON(FAILED_KEY, []).filter(id=>findQuestionById(id));
+}
+function saveFailedIds(ids){ safeSetJSON(FAILED_KEY, ids); }
+function failedIdsOf(subjectId){
+  const ids = loadFailedIds();
+  if(!subjectId) return ids;
+  return ids.filter(id=>{ const q = findQuestionById(id); return q && q.subject === subjectId; });
+}
+function updateFailedBank(){
+  const failed = new Set(loadFailedIds());
+  currentTest.questions.forEach((q,i)=>{
+    if(currentTest.answers[i] === q.correct) failed.delete(q.id);
+    else failed.add(q.id);
+  });
+  saveFailedIds(Array.from(failed));
+}
+
+/* ---------------- DOMINIO TOTAL DEL BANCO ---------------- */
+function loadMasteredIds(){ return safeGetJSON(MASTERY_KEY, []); }
+function updateMasteredIds(){
+  const mastered = new Set(loadMasteredIds());
+  currentTest.questions.forEach((q,i)=>{
+    if(currentTest.answers[i] === q.correct) mastered.add(q.id);
+  });
+  safeSetJSON(MASTERY_KEY, Array.from(mastered));
+}
+function isFullMastery(){
+  const m = new Set(loadMasteredIds());
+  return QUESTIONS.every(q=>m.has(q.id));
+}
+
+/* ---------------- MODO DEPURACIÓN ---------------- */
+// Acceso oculto para probar pantallas especiales sin tocar datos guardados.
+const DEBUG_PASSWORD = '7920';
+function openDebugMode(){
+  const pass = prompt('Contraseña de depuración:');
+  if(pass === null) return;
+  if(pass !== DEBUG_PASSWORD){ alert('Contraseña incorrecta.'); return; }
+  showDebugPanel();
+}
+function showDebugPanel(){
+  clearTimer();
+  document.getElementById('topbarSub').textContent = 'Modo depuración';
+  document.getElementById('screen').innerHTML = `
+    <div class="home">
+      <div class="section-label">Modo depuración</div>
+      <p class="empty-hint">Estas acciones solo simulan pantallas, sin tocar tu historial, logros ni progreso reales.</p>
+      <button class="btn-primary" onclick="debugShowLegendary()" style="margin-bottom:10px;">Simular logro legendario</button>
+      <button class="btn-secondary" onclick="debugShowPass()" style="margin-bottom:10px; width:100%;">Simular aprobado + récord</button>
+      <button class="btn-secondary" onclick="debugShowFail()" style="margin-bottom:10px; width:100%;">Simular suspenso</button>
+      <button class="btn-secondary" onclick="renderHome()" style="width:100%;">Salir del modo depuración</button>
+    </div>
+  `;
+}
+function debugShowLegendary(){
+  currentTest = makeTestShell('mixed', null, null, []);
+  renderResults(180, 180, false, false, [GRAND_MASTER_ACHIEVEMENT]);
+}
+function debugShowPass(){
+  currentTest = makeTestShell('mixed', null, null, []);
+  renderResults(30, 36, false, true, []);
+}
+function debugShowFail(){
+  currentTest = makeTestShell('mixed', null, null, []);
+  renderResults(11, 36, false, false, []);
+}
+
+/* ---------------- RÉCORD PERSONAL ---------------- */
+function getBestPercent(history){
+  if(!history.length) return null;
+  return Math.max(...history.map(h=>Math.round(h.score/(h.total||TEST_SIZE)*100)));
+}
+
+/* ---------------- LOGROS ---------------- */
+const REGULAR_ACHIEVEMENTS = [
+  {id:'primera_salida', icon:'siren', title:'Primera salida', desc:'Completa tu primer test.',
+    check:h=>h.length>=1},
+  {id:'aviso_resuelto', icon:'check', title:'Aviso resuelto', desc:'Aprueba un test por primera vez.',
+    check:h=>h.some(e=>e.score>=passScoreFor(e.total||TEST_SIZE))},
+  {id:'guardia_completa', icon:'clock', title:'Guardia completa', desc:'Completa 10 tests.',
+    check:h=>h.length>=10},
+  {id:'constantes_perfectas', icon:'heart', title:'Constantes perfectas', desc:'Saca un 100% en un test de al menos 12 preguntas.',
+    check:h=>h.some(e=>(e.total||0)>=12 && e.score===e.total)},
+  {id:'polivalente', icon:'route', title:'Polivalente', desc:'Haz un test de cada una de las asignaturas.',
+    check:h=>{ const s=new Set(h.filter(e=>e.subject && (e.mode==='subject'||e.mode==='exam')).map(e=>e.subject)); return SUBJECTS.filter(x=>questionsOf(x.id).length).every(x=>s.has(x.id)); }},
+  {id:'ritmo_sinusal', icon:'pulse', title:'Ritmo sinusal', desc:'Encadena 10 aciertos seguidos en un test.',
+    check:h=>h.some(e=>(e.maxCombo||0)>=10)},
+];
+const GRAND_MASTER_ACHIEVEMENT = {
+  id:'leyenda_112', icon:'medal', title:'Leyenda del 112',
+  desc:`Consigue todos los demás logros y acierta alguna vez las ${QUESTIONS.length} preguntas del banco.`,
+  legendary:true,
+  check:h => REGULAR_ACHIEVEMENTS.every(a=>a.check(h)) && isFullMastery()
+};
+const ACHIEVEMENTS = [...REGULAR_ACHIEVEMENTS, GRAND_MASTER_ACHIEVEMENT];
+function getAchievements(history){ return ACHIEVEMENTS.map(a=>({...a, earned:a.check(history)})); }
+function computeMaxCombo(test){
+  let maxCombo=0, run=0;
+  test.questions.forEach((q,i)=>{
+    if(test.answers[i]===q.correct){ run++; if(run>maxCombo) maxCombo=run; }
+    else{ run=0; }
+  });
+  return maxCombo;
+}
+function currentCombo(){
+  if(!currentTest) return 0;
+  let idx = currentTest.answers.length-1;
+  while(idx>=0 && currentTest.answers[idx]===null) idx--;
+  let combo=0;
+  while(idx>=0 && currentTest.answers[idx]!==null && currentTest.answers[idx]===currentTest.questions[idx].correct){
+    combo++; idx--;
+  }
+  return combo;
+}
+
+/* ---------------- PROGRESO (continuar test) ---------------- */
+function saveProgress(){ safeSetJSON(PROGRESS_KEY, {currentTest, currentIndex, savedAt:Date.now()}); }
+function loadProgress(){ return safeGetJSON(PROGRESS_KEY, null); }
+function clearProgress(){ safeRemove(PROGRESS_KEY); }
+
+/* ---------------- BARAJADO ---------------- */
+// Opciones que hacen referencia a otras por letra/posición: no se barajan.
+const NO_SHUFFLE_PATTERNS = [
+  /\b[a-dA-D]\s+y\s+[a-dA-D]\b/,
+  /\brespuestas?\s+[a-dA-D]\b/i,
+  /anteriores/i,
+  /todas\s+(las\s+)?(respuestas\s+)?son\s+correctas/i,
+  /ninguna\s+(de\s+las\s+)?(es|son)\s+correcta/i,
+  /solo\s+la\s+[a-dA-D]\b/i,
+  /\bambas\b/i,
+];
+function needsFixedOrder(q){ return q.options.length <= 2 || q.options.some(opt => NO_SHUFFLE_PATTERNS.some(p=>p.test(opt))); }
+function shuffleQuestionOptions(q){
+  const base = { id:q.id, subject:q.subject, exam:q.exam, text:q.text, unverified:!!q.u };
+  if(needsFixedOrder(q)) return { ...base, options:q.options.slice(), correct:q.correct };
+  const shuffled = shuffle(q.options.map((_,i)=>i));
+  return { ...base, options:shuffled.map(i=>q.options[i]), correct:shuffled.indexOf(q.correct) };
+}
+function modeLabel(test){
+  const s = test.subject ? getSubject(test.subject) : null;
+  if(test.mode === 'subject') return s.short + ' · Simulacro';
+  if(test.mode === 'exam') return s.short + ' · ' + test.label;
+  if(test.mode === 'review') return 'Repaso de falladas';
+  if(test.mode === 'failed') return 'Falladas guardadas' + (s ? ' · ' + s.short : '');
+  if(test.mode === 'unverified') return 'Preguntas no verificadas';
+  return 'Simulacro general';
+}
+function historyTag(h){
+  const s = h.subject ? getSubject(h.subject) : null;
+  if(h.mode === 'subject') return 'Simulacro · ' + s.short;
+  if(h.mode === 'exam') return s.short + ' · ' + h.label;
+  if(h.mode === 'review' || h.mode === 'failed') return 'Repaso' + (s ? ' · ' + s.short : '');
+  if(h.mode === 'unverified') return 'Revisión';
+  return 'Simulacro general';
+}
+
+/* ---------------- CONSTRUCCIÓN DE TESTS ---------------- */
+function makeTestShell(mode, subject, label, questions){
+  return { mode, subject, label, questions, answers:new Array(questions.length).fill(null), phrases:new Array(questions.length).fill(null), timed:false, endTime:null };
+}
+/* ---------------- SELECCIÓN ALEATORIA SIN REPETICIONES ---------------- */
+function normText(t){ return String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+// Elimina duplicados: mismo id, o mismo enunciado con la misma respuesta correcta
+// (por si una pregunta se repite en dos tests distintos de la plataforma).
+function dedupe(pool){
+  const seenIds = new Set(), seenKeys = new Set(), out = [];
+  pool.forEach(q=>{
+    const key = normText(q.text) + '|' + normText(q.options[q.correct]);
+    if(seenIds.has(q.id) || seenKeys.has(key)) return;
+    seenIds.add(q.id); seenKeys.add(key); out.push(q);
+  });
+  return out;
+}
+function loadSeen(){ const v = safeGetJSON(SEEN_KEY, null); return (v && v.last) ? v : {n:0, last:{}}; }
+function loadRecent(){ return safeGetJSON(RECENT_KEY, {}); }
+// Reparte "size" preguntas sin repetir ninguna dentro del test y evitando las
+// que salieron en los tests aleatorios anteriores del mismo ámbito:
+//   1º preguntas que no salieron en los 2 últimos tests,
+//   2º las del penúltimo test, 3º (solo si no queda otra) las del último.
+// Dentro de cada nivel se prioriza lo que lleva más tiempo sin salir y se
+// reparte por turnos entre temas/asignaturas para que todos estén representados.
+function pickFresh(pool, keyFn, size, scope){
+  pool = dedupe(pool);
+  const seen = loadSeen();
+  const recent = loadRecent()[scope] || [];
+  const last = new Set(recent[0] || []), prev = new Set(recent[1] || []);
+  const tierOf = q => last.has(q.id) ? 2 : (prev.has(q.id) ? 1 : 0);
+  const age = q => (q.id in seen.last) ? seen.last[q.id] : -1;
+  const picked = [], used = new Set();
+  for(let tier=0; tier<=2 && picked.length<size; tier++){
+    const groups = {};
+    pool.filter(q=>tierOf(q)===tier).forEach(q=>{ const k = keyFn(q); (groups[k] = groups[k] || []).push(q); });
+    // orden: lo más antiguo primero; empates al azar
+    const lists = shuffle(Object.keys(groups)).map(k=>shuffle(groups[k]).sort((x,y)=>age(x)-age(y)));
+    let added = true;
+    while(picked.length < size && added){
+      added = false;
+      for(const l of lists){
+        if(picked.length >= size) break;
+        const q = l.shift();
+        if(q && !used.has(q.id)){ picked.push(q); used.add(q.id); added = true; }
+      }
+    }
+  }
+  return shuffle(picked);
+}
+// Guarda qué preguntas han salido, para que el siguiente test las evite.
+function rememberTest(questions, scope){
+  const seen = loadSeen();
+  seen.n++;
+  questions.forEach(q=>{ seen.last[q.id] = seen.n; });
+  safeSetJSON(SEEN_KEY, seen);
+  const recent = loadRecent();
+  recent[scope] = [questions.map(q=>q.id), (recent[scope] && recent[scope][0]) || []];
+  safeSetJSON(RECENT_KEY, recent);
+}
+function buildTest(){
+  const picked = pickFresh(QUESTIONS, q=>q.subject, TEST_SIZE, 'mixed');
+  rememberTest(picked, 'mixed');
+  return makeTestShell('mixed', null, null, picked.map(shuffleQuestionOptions));
+}
+function buildSubjectTest(subjectId){
+  const scope = 'subject:' + subjectId;
+  const picked = pickFresh(questionsOf(subjectId), q=>q.exam, TEST_SIZE, scope);
+  rememberTest(picked, scope);
+  return makeTestShell('subject', subjectId, null, picked.map(shuffleQuestionOptions));
+}
+function buildExamTest(subjectId, tema){
+  const picked = shuffle(dedupe(questionsOf(subjectId).filter(q=>q.exam === tema)));
+  return makeTestShell('exam', subjectId, tema, picked.map(shuffleQuestionOptions));
+}
+function buildReviewTest(ids, mode, subjectId){
+  const picked = shuffle(dedupe(ids.map(findQuestionById).filter(Boolean)));
+  return makeTestShell(mode || 'review', subjectId || null, null, picked.map(shuffleQuestionOptions));
+}
+
+function applyTimedMode(){
+  const chk = document.getElementById('timedMode');
+  if(chk && chk.checked){
+    currentTest.timed = true;
+    currentTest.endTime = Date.now() + TIMED_SECONDS*1000;
+  }
+}
+function launch(test, allowTimed){
+  if(!test.questions.length) return;
+  currentTest = test;
+  if(allowTimed) applyTimedMode();
+  currentIndex = 0;
+  saveProgress();
+  startTimerIfNeeded();
+  window.scrollTo(0,0);
+  renderQuiz();
+}
+function startTest(){ launch(buildTest(), true); }
+function startSubjectTest(subjectId){ launch(buildSubjectTest(subjectId), true); }
+function startExamTest(subjectId, temaIdx){
+  const tema = temasOf(subjectId)[temaIdx];
+  if(tema === undefined) return;
+  launch(buildExamTest(subjectId, tema), true);
+}
+function startExamTestByName(subjectId, tema){ launch(buildExamTest(subjectId, tema), true); }
+function startReviewTest(ids, mode, subjectId){
+  if(!ids || !ids.length) return;
+  launch(buildReviewTest(ids, mode, subjectId), false);
+}
+function reviewFailed(){ startReviewTest(lastWrongIds, 'review', currentTest && currentTest.subject); }
+function startUnverifiedTest(subjectId){
+  startReviewTest(QUESTIONS.filter(q=>q.u && (!subjectId || q.subject===subjectId)).map(q=>q.id), 'unverified', subjectId);
+}
+function startFailedTest(subjectId){
+  const ids = failedIdsOf(subjectId);
+  if(!ids.length) return;
+  startReviewTest(shuffle(ids).slice(0, TEST_SIZE), 'failed', subjectId);
+}
+function repeatTest(){
+  const t = currentTest;
+  if(t.mode === 'exam') startExamTestByName(t.subject, t.label);
+  else if(t.mode === 'subject') startSubjectTest(t.subject);
+  else if(t.mode === 'review') startReviewTest(t.questions.map(q=>q.id), 'review', t.subject);
+  else if(t.mode === 'unverified') startUnverifiedTest(t.subject);
+  else if(t.mode === 'failed') startFailedTest(t.subject);
+  else startTest();
+}
+function continueTest(){
+  const p = loadProgress();
+  if(!p || !p.currentTest){ renderHome(); return; }
+  currentTest = p.currentTest;
+  currentIndex = p.currentIndex;
+  startTimerIfNeeded();
+  renderQuiz();
+}
+function discardProgress(){
+  clearProgress();
+  if(currentSubjectId) renderSubject(currentSubjectId); else renderHome();
+}
+function backToMenu(){
+  if(currentTest && currentTest.subject) renderSubject(currentTest.subject);
+  else renderHome();
+}
+
+/* ---------------- TEMPORIZADOR ---------------- */
+function clearTimer(){ if(timerInterval){ clearInterval(timerInterval); timerInterval = null; } }
+function startTimerIfNeeded(){
+  clearTimer();
+  if(currentTest && currentTest.timed) timerInterval = setInterval(updateTimerDisplay, 1000);
+}
+function updateTimerDisplay(){
+  const el = document.getElementById('timerDisplay');
+  if(!el || !currentTest || !currentTest.timed) return;
+  const remaining = Math.max(0, currentTest.endTime - Date.now());
+  const mins = Math.floor(remaining/60000);
+  const secs = Math.floor((remaining%60000)/1000);
+  el.innerHTML = `${icon('clock',13)} ${mins}:${secs.toString().padStart(2,'0')}`;
+  el.classList.toggle('warn', remaining < 5*60*1000);
+  if(remaining <= 0){ clearTimer(); finishTest(true); }
+}
+
+/* ---------------- COMPONENTES COMUNES ---------------- */
+function continueBannerHtml(){
+  const progress = loadProgress();
+  if(!progress || !progress.currentTest || !progress.currentTest.questions) return '';
+  const total = progress.currentTest.questions.length;
+  return `
+    <div class="continue-banner">
+      <div class="cb-text">${icon('siren',15)} Tienes un test en curso: <b>${escapeHtml(modeLabel(progress.currentTest))}</b> · Pregunta ${progress.currentIndex+1} de ${total}</div>
+      <div class="cb-actions">
+        <button class="btn-secondary" onclick="discardProgress()">Descartar</button>
+        <button class="btn-primary" onclick="continueTest()">Continuar</button>
+      </div>
+    </div>`;
+}
+function historyListHtml(history, emptyText){
+  if(!history.length) return `<p class="empty-hint">${emptyText}</p>`;
+  return '<div class="history">' + history.slice(0,8).map(h=>{
+    const total = h.total || TEST_SIZE;
+    const pass = h.score >= passScoreFor(total);
+    const dateStr = new Date(h.date).toLocaleDateString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    return `<div class="history-item">
+      <span>${dateStr} <span style="color:var(--text-muted);font-size:12px;">· ${escapeHtml(historyTag(h))}</span></span>
+      <span class="score ${pass?'pass':'fail'}">${h.score}/${total}</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+function statsListHtml(agg, labelFn, emptyText){
+  const keys = Object.keys(agg);
+  if(!keys.length) return `<p class="empty-hint">${emptyText}</p>`;
+  return '<div class="stats-list">' + keys.map(k=>{
+    const s = agg[k];
+    const pct = Math.round(s.correct/s.total*100);
+    return `<div class="stats-item">
+      <div class="si-top"><b>${escapeHtml(labelFn(k))}</b><span>${pct}% (${s.correct}/${s.total})</span></div>
+      <div class="stats-bar"><div class="stats-bar-fill ${pct<50?'low':''}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('') + '</div>';
+}
+function timedToggleHtml(){
+  return `<label class="mode-toggle"><input type="checkbox" id="timedMode"> ${icon('clock',15)} Modo cronometrado (45 min)</label>`;
+}
+
+/* ---------------- RENDER: HOME ---------------- */
+function renderHome(){
+  clearTimer();
+  currentSubjectId = null;
+  document.getElementById('topbarSub').textContent = 'Técnico en Emergencias Sanitarias';
+  const history = loadHistory();
+  const unverifiedCount = QUESTIONS.filter(q=>q.u).length;
+  const failedCount = loadFailedIds().length;
+
+  const subjectsHtml = '<div class="subject-list">' + SUBJECTS.map(s=>{
+    const n = questionsOf(s.id).length;
+    const nt = temasOf(s.id).length;
+    const m = subjectMastery(s.id);
+    return `<button type="button" class="subject-card" style="--sc:${s.color}" onclick="openSubject('${s.id}')" ${n?'':'disabled'}>
+      <div class="sc-icon">${icon(s.icon, 26)}</div>
+      <div class="sc-body">
+        <b>${escapeHtml(s.name)}</b>
+        <span>${n ? `${n} preguntas · ${nt} ${nt===1?'tema':'temas'} · ${m}% dominado` : 'Próximamente'}</span>
+        <div class="sc-meter"><div style="width:${m}%"></div></div>
+      </div>
+      <div class="sc-arrow">${icon('chevronRight',18)}</div>
+    </button>`;
+  }).join('') + '</div>';
+
+  const bestPercent = getBestPercent(history);
+  const achievements = getAchievements(history);
+  const achvHtml = '<div class="achv-grid">' + achievements.map(a=>`
+    <div class="achv-item ${a.earned?'':'locked'} ${a.legendary?'legendary':''}">
+      <div class="achv-icon">${icon(a.icon || 'award', a.legendary?26:22)}</div>
+      <b>${a.title}</b>
+      <span>${a.desc}</span>
+    </div>
+  `).join('') + '</div>';
+
+  const subjAgg = aggregate(history, 'subjBreakdown');
+  const orderedAgg = {};
+  SUBJECTS.forEach(s=>{ if(subjAgg[s.id]) orderedAgg[s.id] = subjAgg[s.id]; });
+
+  document.getElementById('screen').innerHTML = `
+    <div class="home">
+      ${continueBannerHtml()}
+      <div class="hero">
+        ${ecgSVG()}
+        <div class="hero-top">
+          <div class="hero-mascot mascot-idle">${mascotSVG('happy', 76)}</div>
+          <div>
+            <h2>Prepárate<br>para la <em>guardia</em></h2>
+          </div>
+        </div>
+        <p>Elige una asignatura y entrena por temas o con simulacros de examen de esa asignatura.</p>
+        <div class="stat-row">
+          <div class="stat"><b>${QUESTIONS.length}</b><span>preguntas</span></div>
+          <div class="stat"><b>${SUBJECTS.length}</b><span>asignaturas</span></div>
+          <div class="stat"><b>${SUBJECTS.reduce((n,x)=>n+temasOf(x.id).length,0)}</b><span>temas</span></div>
+        </div>
+      </div>
+
+      <div class="home-tabs">
+        <button class="home-tab ${homeTab==='asignaturas'?'active':''}" onclick="switchHomeTab('asignaturas')">Asignaturas</button>
+        <button class="home-tab ${homeTab==='progreso'?'active':''}" onclick="switchHomeTab('progreso')">Progreso</button>
+      </div>
+
+      ${homeTab === 'asignaturas' ? `
+      <div class="section-label">Elige asignatura</div>
+      ${subjectsHtml}
+
+      ` : `
+      ${bestPercent !== null ? `
+      <div class="section-label">Récord personal</div>
+      <div class="record-card">
+        <div class="record-icon">${icon('award',24)}</div>
+        <div><b>${bestPercent}%</b><span>Tu mejor resultado hasta ahora. ¡A por más!</span></div>
+      </div>` : ''}
+
+      <div class="section-label">Logros</div>
+      ${achvHtml}
+
+      <div class="section-label">Rendimiento por asignatura</div>
+      ${statsListHtml(orderedAgg, k=>getSubject(k).name, 'Haz al menos un test para ver tu rendimiento por asignatura.')}
+
+      <div class="section-label">Últimos resultados</div>
+      ${historyListHtml(history, 'Todavía no has hecho ningún test. ¡Primera salida cuando quieras!')}
+      `}
+    </div>
+    <footer class="note">Aprobado orientativo: 50% de aciertos. Contrasta siempre con tus apuntes y el material oficial del ciclo.</footer>
+  `;
+}
+function switchHomeTab(tab){ homeTab = tab; renderHome(); }
+
+/* ---------------- RENDER: ASIGNATURA ---------------- */
+function openSubject(id){ subjectTab = 'practicar'; renderSubject(id); window.scrollTo(0,0); }
+function renderSubject(id){
+  clearTimer();
+  currentSubjectId = id;
+  const s = getSubject(id);
+  document.getElementById('topbarSub').textContent = s.name;
+  const qs = questionsOf(id);
+  const temas = temasOf(id);
+  const failedCount = failedIdsOf(id).length;
+  const unvCount = qs.filter(q=>q.u).length;
+  const history = loadHistory().filter(h=>h.subject === id || (h.subjBreakdown && h.subjBreakdown[id] && h.mode==='mixed'));
+  const m = subjectMastery(id);
+
+  const temaAgg = aggregate(loadHistory(), 'temaBreakdown', k=>k.startsWith(id+'::'));
+  const temaOrdered = {};
+  temas.forEach(t=>{ const k = id+'::'+t; if(temaAgg[k]) temaOrdered[k] = temaAgg[k]; });
+
+  document.getElementById('screen').innerHTML = `
+    <div class="home" style="--sc:${s.color}">
+      <button class="back-link" onclick="renderHome()">${icon('chevronLeft',16)} Asignaturas</button>
+      ${continueBannerHtml()}
+      <div class="subject-hero">
+        <div class="sh-top">
+          <div class="sc-icon">${icon(s.icon, 26)}</div>
+          <h2>${escapeHtml(s.name)}</h2>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><b>${qs.length}</b><span>preguntas</span></div>
+          <div class="stat"><b>${temas.length}</b><span>${temas.length===1?'tema':'temas'}</span></div>
+          <div class="stat"><b>${m}%</b><span>dominado</span></div>
+        </div>
+        ${timedToggleHtml()}
+      </div>
+
+      <button class="btn-primary" onclick="startSubjectTest('${id}')">${icon('siren',20)} Simulacro de examen</button>
+      <p class="sim-hint">${Math.min(TEST_SIZE, qs.length)} preguntas al azar de todos los temas, priorizando las que no salieron en el simulacro anterior.</p>
+
+      <div class="home-tabs">
+        <button class="home-tab ${subjectTab==='practicar'?'active':''}" onclick="switchSubjectTab('practicar')">Practicar</button>
+        <button class="home-tab ${subjectTab==='progreso'?'active':''}" onclick="switchSubjectTab('progreso')">Progreso</button>
+      </div>
+
+      ${subjectTab === 'practicar' ? `
+      <div class="section-label">Practicar por tema</div>
+      <div class="exam-list">
+        ${temas.map((t,i)=>`
+          <div class="exam-practice-item">
+            <div class="epi-info"><b>${escapeHtml(t)}</b><span>${qs.filter(q=>q.exam===t).length} preguntas</span></div>
+            <button class="btn-mini" onclick="startExamTest('${id}', ${i})">Practicar</button>
+          </div>`).join('')}
+      </div>
+
+      ${failedCount > 0 ? `
+      <div class="section-label">Repaso</div>
+      <div class="exam-practice-item">
+        <div class="epi-info"><b>${icon('flame',15)} Falladas de la asignatura</b><span>${Math.min(failedCount, TEST_SIZE)}${failedCount > TEST_SIZE ? ' de '+failedCount : ''} preguntas guardadas</span></div>
+        <button class="btn-mini" onclick="startFailedTest('${id}')">Repasar</button>
+      </div>` : ''}
+
+      ${unvCount > 0 ? `
+      <div class="section-label">Revisión</div>
+      <div class="exam-practice-item">
+        <div class="epi-info"><b>${icon('warning',15)} Preguntas no verificadas</b><span>${unvCount} ${unvCount===1?'pregunta':'preguntas'} sin confirmar oficialmente</span></div>
+        <button class="btn-mini" onclick="startUnverifiedTest('${id}')">Repasar</button>
+      </div>` : ''}
+      ` : `
+      <div class="section-label">Rendimiento por tema</div>
+      ${statsListHtml(temaOrdered, k=>k.split('::').slice(1).join('::'), 'Haz algún test de esta asignatura para ver tu rendimiento por tema.')}
+
+      <div class="section-label">Últimos resultados</div>
+      ${historyListHtml(history, 'Aún no has hecho tests de esta asignatura.')}
+      `}
+    </div>
+    <footer class="note">Aprobado orientativo: 50% de aciertos. Contrasta siempre con tus apuntes y el material oficial del ciclo.</footer>
+  `;
+}
+function switchSubjectTab(tab){ subjectTab = tab; renderSubject(currentSubjectId); }
+
+/* ---------------- RENDER: QUIZ ---------------- */
+function renderQuiz(){
+  const total = currentTest.questions.length;
+  document.getElementById('topbarSub').textContent = `${modeLabel(currentTest)} · ${currentIndex+1}/${total}`;
+  const q = currentTest.questions[currentIndex];
+  const subj = getSubject(q.subject);
+  const userAnswer = currentTest.answers[currentIndex];
+  const answered = userAnswer !== null;
+
+  const optionsHtml = q.options.map((opt,i)=>{
+    let cls = 'option';
+    let state = '';
+    if(answered){
+      cls += ' disabled';
+      if(i===q.correct){ cls += ' correct'; state = ', correcta'; }
+      else if(i===userAnswer){ cls += ' incorrect'; state = ', tu respuesta, incorrecta'; }
+    } else if(i===userAnswer){
+      cls += ' selected';
+    }
+    return `<button type="button" class="${cls}" onclick="selectAnswer(${i})" ${answered?'disabled':''} aria-label="Opción ${LETTERS[i]}: ${escapeHtml(opt)}${state}">
+      <div class="letter">${LETTERS[i]}</div>
+      <div>${opt}</div>
+    </button>`;
+  }).join('');
+
+  let feedbackHtml = '';
+  if(answered){
+    const correct = userAnswer === q.correct;
+    if(!currentTest.phrases) currentTest.phrases = new Array(total).fill(null);
+    if(!currentTest.phrases[currentIndex]) currentTest.phrases[currentIndex] = pickPhrase(correct, LETTERS[q.correct]);
+    feedbackHtml = `<div class="feedback show ${correct?'ok':'no'}">
+      ${correct ? icon('check',15) : icon('cross',15)} <span>${currentTest.phrases[currentIndex]}</span>
+    </div>`;
+    let lastAnsweredIdx = currentTest.answers.length-1;
+    while(lastAnsweredIdx>=0 && currentTest.answers[lastAnsweredIdx]===null) lastAnsweredIdx--;
+    const combo = currentCombo();
+    if(correct && combo >= 3 && currentIndex === lastAnsweredIdx){
+      feedbackHtml += `<div class="combo-badge">${icon('pulse',15)} ¡${combo} seguidas! Ritmo constante</div>`;
+    }
+  }
+  const mascotState = !answered ? 'neutral' : (userAnswer === q.correct ? 'happy' : 'sad');
+
+  const dotsHtml = currentTest.questions.map((_,i)=>{
+    let cls = 'dot';
+    if(i===currentIndex) cls += ' current';
+    const a = currentTest.answers[i];
+    let stateLabel = 'sin responder';
+    if(a !== null){
+      const isOk = a === currentTest.questions[i].correct;
+      cls += isOk ? ' answered-ok' : ' answered-no';
+      stateLabel = isOk ? 'respondida correctamente' : 'respondida incorrectamente';
+    }
+    const current = i===currentIndex ? ', pregunta actual' : '';
+    return `<button type="button" class="${cls}" onclick="goToQuestion(${i})" aria-label="Pregunta ${i+1}, ${stateLabel}${current}" ${i===currentIndex?'aria-current="true"':''}>${i+1}</button>`;
+  }).join('');
+
+  const answeredCount = currentTest.answers.filter(a=>a!==null).length;
+  const timerHtml = currentTest.timed ? ` · <span class="timer" id="timerDisplay">${icon('clock',13)} --:--</span>` : '';
+  const progressPct = total > 0 ? (answeredCount/total*100) : 0;
+
+  document.getElementById('screen').innerHTML = `
+    <div class="quiz" style="--sc:${subj.color}">
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" style="width:${progressPct}%"></div></div>
+        <div class="progress-text"><span>Pregunta ${currentIndex+1}/${total}</span><span>${answeredCount} respondidas${timerHtml}</span></div>
+      </div>
+
+      <div class="q-card">
+        <div class="q-card-head">
+          <div class="q-tag">${escapeHtml(subj.short)}<small>${escapeHtml(q.exam)}</small></div>
+          <div class="mascot ${answered?'react':''}">${mascotSVG(mascotState, 46)}</div>
+        </div>
+        ${q.unverified ? '<div class="unverified-badge">'+icon('warning',12)+' Respuesta sin verificar oficialmente</div>' : ''}
+        <div class="q-text">${q.text}</div>
+        <div class="options">${optionsHtml}</div>
+        ${feedbackHtml}
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn-secondary" onclick="prevQuestion()" ${currentIndex===0?'disabled':''}>${icon('chevronLeft',15)} Anterior</button>
+        ${currentIndex===total-1
+          ? `<button class="btn-primary" onclick="finishTest()">Ver resultados</button>`
+          : `<button class="btn-primary" onclick="nextQuestion()">Siguiente ${icon('chevronRight',16)}</button>`}
+      </div>
+
+      <div class="dotnav">${dotsHtml}</div>
+    </div>
+  `;
+  if(currentTest.timed) updateTimerDisplay();
+  saveProgress();
+}
+
+function selectAnswer(i){
+  if(currentTest.answers[currentIndex] !== null) return;
+  currentTest.answers[currentIndex] = i;
+  if(!currentTest.phrases) currentTest.phrases = new Array(currentTest.questions.length).fill(null);
+  const q = currentTest.questions[currentIndex];
+  currentTest.phrases[currentIndex] = pickPhrase(i === q.correct, LETTERS[q.correct]);
+  renderQuiz();
+}
+function nextQuestion(){ if(currentIndex < currentTest.questions.length-1){ currentIndex++; renderQuiz(); } }
+function prevQuestion(){ if(currentIndex > 0){ currentIndex--; renderQuiz(); } }
+function goToQuestion(i){ currentIndex = i; renderQuiz(); }
+
+/* ---------------- RENDER: RESULTADOS ---------------- */
+function finishTest(timeUp){
+  clearTimer();
+  const total = currentTest.questions.length;
+  let score = 0;
+  const subjBreakdown = {};
+  const temaBreakdown = {};
+  currentTest.questions.forEach((q,i)=>{
+    const tk = q.subject + '::' + q.exam;
+    if(!subjBreakdown[q.subject]) subjBreakdown[q.subject] = {correct:0, total:0};
+    if(!temaBreakdown[tk]) temaBreakdown[tk] = {correct:0, total:0};
+    subjBreakdown[q.subject].total++;
+    temaBreakdown[tk].total++;
+    if(currentTest.answers[i] === q.correct){
+      score++;
+      subjBreakdown[q.subject].correct++;
+      temaBreakdown[tk].correct++;
+    }
+  });
+  const maxCombo = computeMaxCombo(currentTest);
+  currentTest.finishedAt = Date.now();
+
+  const historyBefore = loadHistory();
+  const prevBest = getBestPercent(historyBefore);
+  const achvBefore = getAchievements(historyBefore).filter(a=>a.earned).map(a=>a.id);
+
+  saveHistoryEntry({date:Date.now(), score, total, mode:currentTest.mode, subject:currentTest.subject, label:currentTest.label, subjBreakdown, temaBreakdown, maxCombo});
+  updateFailedBank();
+  updateMasteredIds();
+  clearProgress();
+
+  const newPercent = Math.round(score/total*100);
+  const isNewRecord = historyBefore.length>0 && (prevBest===null || newPercent>prevBest);
+  const newlyUnlocked = getAchievements(loadHistory()).filter(a=>a.earned && !achvBefore.includes(a.id));
+
+  renderResults(score, total, !!timeUp, isNewRecord, newlyUnlocked);
+}
+
+function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked){
+  window.scrollTo(0,0);
+  document.getElementById('topbarSub').textContent = 'Resultado · ' + modeLabel(currentTest);
+  const passScore = passScoreFor(total);
+  const pass = score >= passScore;
+  const pct = total ? Math.round(score/total*100) : 0;
+  newlyUnlocked = newlyUnlocked || [];
+
+  const wrongItems = currentTest.questions.map((q,i)=>({q,i,ans:currentTest.answers[i]}))
+    .filter(x=>x.ans !== x.q.correct);
+  lastWrongIds = wrongItems.map(x=>x.q.id);
+
+  let reviewHtml = '';
+  if(wrongItems.length){
+    reviewHtml = `<div class="section-label">Preguntas a repasar (${wrongItems.length})</div>` +
+      wrongItems.map(x=>{
+        const s = getSubject(x.q.subject);
+        return `
+        <div class="review-item" style="--sc:${s.color}">
+          <div class="review-tag">${escapeHtml(s.short)} · ${escapeHtml(x.q.exam)} · Pregunta ${x.i+1}${x.q.unverified ? ' · '+icon('warning',10)+' sin verificar' : ''}</div>
+          <div class="rq">${x.q.text}</div>
+          <div class="ra user-wrong">${x.ans!==null ? 'Tu respuesta: '+LETTERS[x.ans]+') '+x.q.options[x.ans] : 'No respondida'}</div>
+          <div class="ra correct-ans">Correcta: ${LETTERS[x.q.correct]}) ${x.q.options[x.q.correct]}</div>
+        </div>`;
+      }).join('');
+  } else if(total){
+    reviewHtml = `<div class="section-label">Repaso</div><p class="empty-hint">Ninguna pregunta fallada. Todos los pacientes atendidos.</p>`;
+  }
+
+  const timeUpHtml = timeUp ? `<p class="empty-hint">${icon('clock',12)} Se acabó el tiempo asignado; el test se ha cerrado automáticamente.</p>` : '';
+  const grandMasterEntry = newlyUnlocked.find(a=>a.id===GRAND_MASTER_ACHIEVEMENT.id);
+  const otherNewlyUnlocked = newlyUnlocked.filter(a=>a.id!==GRAND_MASTER_ACHIEVEMENT.id);
+  const recordHtml = (pass && isNewRecord) ? `<div class="celebrate-banner">${icon('award',17)} Nuevo récord personal: ${pct}%</div>` : '';
+  const achvHtml = otherNewlyUnlocked.map(a=>`<div class="celebrate-banner">${icon(a.icon||'award',17)} Logro desbloqueado: ${a.title}</div>`).join('');
+  const legendaryHtml = grandMasterEntry ? `
+    <div class="legendary-banner">
+      ${confettiHtml(40)}
+      <div class="legendary-icon">${icon('medal',32)}</div>
+      <b>¡LEYENDA DEL 112!</b>
+      <span>Te sabes las ${QUESTIONS.length} preguntas del banco y has desbloqueado todos los logros. Ya solo falta que el examen de verdad sea así de tranquilo...</span>
+      <a class="reward-btn" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ&start_radio=1" target="_blank" rel="noopener">${icon('award',15)} Reclamar recompensa</a>
+    </div>
+  ` : '';
+
+  const backLabel = currentTest.subject ? 'Volver a la asignatura' : 'Ir al inicio';
+
+  document.getElementById('screen').innerHTML = `
+    <div class="results">
+      ${timeUpHtml}
+      <div class="result-hero ${pass?'pass':'fail'}">
+        ${pass ? confettiHtml(26) : ''}
+        <div class="rh-mascot mascot-idle">${mascotSVG(pass?'happy':'sad', 78)}</div>
+        <div class="big-score"><span id="scoreCount">0</span>/${total}</div>
+        <div class="big-label">${pct}% de aciertos</div>
+        <div class="rh-msg">${resultMessage(pct)}</div>
+        <div class="verdict">${pass ? icon('check',14)+' APTO (orientativo)' : icon('cross',14)+' NO APTO · A REFORZAR'}</div>
+      </div>
+
+      ${total ? `<button class="btn-pdf" onclick="downloadResultPdf()">${icon('download',18)} Descargar PDF corregido</button>` : ''}
+
+      ${legendaryHtml}
+      ${recordHtml}
+      ${achvHtml}
+
+      ${reviewHtml}
+
+      <div class="bottom-actions">
+        <button class="btn-secondary" onclick="backToMenu()">${backLabel}</button>
+        ${wrongItems.length ? `<button class="btn-secondary" onclick="reviewFailed()">Repasar falladas</button>` : ''}
+        <button class="btn-primary" onclick="repeatTest()">Repetir test</button>
+      </div>
+    </div>
+    <footer class="note">Aprobado orientativo: ${passScore}/${total} (50%). Contrasta siempre con el material oficial del ciclo.</footer>
+  `;
+  animateScoreCount(score);
+}
+function animateScoreCount(target){
+  const el = document.getElementById('scoreCount');
+  if(!el || typeof requestAnimationFrame === 'undefined'){ if(el) el.textContent = target; return; }
+  const duration = 650;
+  const start = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  function step(now){
+    const t = Math.min(1, (now - start)/duration);
+    const eased = 1 - Math.pow(1-t, 3);
+    el.textContent = Math.round(eased*target);
+    if(t < 1) requestAnimationFrame(step);
+    else el.textContent = target;
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---------------- PDF DEL RESULTADO (generador propio, sin librerías, funciona sin internet) ---------------- */
+const PDF_W = { F1: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,350,556,350,222,556,333,1000,556,556,333,1000,667,333,1000,350,611,350,350,222,222,333,333,350,556,1000,333,1000,500,333,944,350,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500], F2: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,350,556,350,278,556,500,1000,556,556,333,1000,667,333,1000,350,611,350,350,278,278,500,500,350,556,1000,333,1000,556,333,944,350,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556] };
+// Caracteres especiales de WinAnsi (0x80-0x9F)
+const WINANSI_EXTRA = {'€':128,'‚':130,'ƒ':131,'„':132,'…':133,'†':134,'‡':135,'ˆ':136,'‰':137,'Š':138,'‹':139,'Œ':140,'Ž':142,'‘':145,'’':146,'“':147,'”':148,'•':149,'–':150,'—':151,'˜':152,'™':153,'š':154,'›':155,'œ':156,'ž':158,'Ÿ':159};
+function pdfCode(ch){
+  const c = ch.charCodeAt(0);
+  if(c >= 32 && c < 127) return c;
+  if(c >= 160 && c <= 255) return c;
+  if(WINANSI_EXTRA[ch]) return WINANSI_EXTRA[ch];
+  return 63; // '?'
+}
+function pdfEncode(str){
+  let out = '';
+  for(const ch of String(str).replace(/\s+/g,' ')){
+    const code = pdfCode(ch);
+    const c = String.fromCharCode(code);
+    out += (c === '(' || c === ')' || c === '\\') ? '\\' + c : c;
+  }
+  return out;
+}
+function pdfTextWidth(str, font, size){
+  let w = 0;
+  for(const ch of String(str)) w += PDF_W[font][pdfCode(ch)] || 500;
+  return w * size / 1000;
+}
+function pdfWrap(str, font, size, maxW){
+  const words = String(str).replace(/\s+/g,' ').trim().split(' ');
+  const lines = [];
+  let line = '';
+  words.forEach(word=>{
+    const test = line ? line + ' ' + word : word;
+    if(pdfTextWidth(test, font, size) <= maxW || !line){ line = test; }
+    else { lines.push(line); line = word; }
+  });
+  if(line) lines.push(line);
+  return lines.length ? lines : [''];
+}
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return [0,2,4].map(i=>(parseInt(h.substr(i,2),16)/255).toFixed(3)).join(' ');
+}
+function PdfDoc(){
+  const W = 595.28, H = 841.89, M = 42;
+  const pages = [];
+  let ops = null, y = 0;
+  const api = {
+    W, H, M,
+    get y(){ return y; }, set y(v){ y = v; },
+    newPage(){ ops = []; pages.push(ops); y = H - M; },
+    ensure(h){ if(y - h < M + 24) api.newPage(); },
+    rect(x, yTop, w, h, color){ ops.push(`${hexToRgb(color)} rg ${x.toFixed(2)} ${(yTop-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`); },
+    text(str, x, yBase, font, size, color){
+      ops.push(`BT /${font} ${size} Tf ${hexToRgb(color||'#14202E')} rg ${x.toFixed(2)} ${yBase.toFixed(2)} Td (${pdfEncode(str)}) Tj ET`);
+    },
+    // Escribe un párrafo con salto de línea automático y avanza "y"
+    para(str, x, maxW, font, size, color, lineH){
+      lineH = lineH || size * 1.35;
+      pdfWrap(str, font, size, maxW).forEach(l=>{
+        api.ensure(lineH);
+        api.text(l, x, y - size, font, size, color);
+        y -= lineH;
+      });
+    },
+    output(){
+      const total = pages.length;
+      pages.forEach((p, i)=>{
+        p.push(`BT /F1 8 Tf ${hexToRgb('#566273')} rg ${M} 22 Td (${pdfEncode('TES Test · Técnico en Emergencias Sanitarias')}) Tj ET`);
+        const t = `Página ${i+1} de ${total}`;
+        p.push(`BT /F1 8 Tf ${hexToRgb('#566273')} rg ${(W - M - pdfTextWidth(t,'F1',8)).toFixed(2)} 22 Td (${pdfEncode(t)}) Tj ET`);
+      });
+      const objs = [];
+      objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+      objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+      objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+      const kids = [];
+      pages.forEach((p, i)=>{
+        const pageId = 5 + i*2, contId = 6 + i*2;
+        const stream = p.join('\n');
+        objs[contId] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+        objs[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contId} 0 R >>`;
+        kids.push(`${pageId} 0 R`);
+      });
+      objs[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;
+      let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+      const offsets = [];
+      for(let i=1;i<objs.length;i++){
+        offsets[i] = out.length;
+        out += `${i} 0 obj\n${objs[i]}\nendobj\n`;
+      }
+      const xref = out.length;
+      out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+      for(let i=1;i<objs.length;i++) out += String(offsets[i]).padStart(10,'0') + ' 00000 n \n';
+      out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+      const bytes = new Uint8Array(out.length);
+      for(let i=0;i<out.length;i++) bytes[i] = out.charCodeAt(i) & 0xFF;
+      return bytes;
+    }
+  };
+  api.newPage();
+  return api;
+}
+
+function buildResultPdf(test){
+  const doc = PdfDoc();
+  const {W, M} = doc;
+  const CW = W - 2*M;
+  const total = test.questions.length;
+  const score = test.questions.filter((q,i)=>test.answers[i] === q.correct).length;
+  const pct = total ? Math.round(score/total*100) : 0;
+  const pass = score >= passScoreFor(total);
+  const when = new Date(test.finishedAt || Date.now());
+  const dateStr = when.toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'}) + ' · ' + when.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+
+  // Cabecera
+  doc.rect(0, doc.H, W, 92, '#10233D');
+  for(let x=0, i=0; x<W; x+=18, i++) doc.rect(x, doc.H-92, 18, 6, i%2 ? '#2FA35B' : '#F5C518');
+  doc.text('TES TEST', M, doc.H-40, 'F2', 22, '#F5C518');
+  doc.text('Técnico en Emergencias Sanitarias', M, doc.H-58, 'F1', 10, '#FFFFFF');
+  doc.text(modeLabel(test), M, doc.H-74, 'F2', 11, '#8CC0F5');
+  doc.y = doc.H - 92 - 22;
+
+  // Resumen
+  const boxH = 64;
+  doc.rect(M, doc.y, CW, boxH, pass ? '#E2F5E9' : '#FCE6E4');
+  doc.rect(M, doc.y, 6, boxH, pass ? '#178A4C' : '#C62828');
+  doc.text(`${score}/${total}`, M+20, doc.y-40, 'F2', 30, pass ? '#0F5E33' : '#8E1B1B');
+  const verdict = pass ? 'APTO' : 'NO APTO';
+  doc.text(verdict, M+150, doc.y-26, 'F2', 16, pass ? '#0F5E33' : '#8E1B1B');
+  doc.text(`${pct}% de aciertos · aprobado con ${passScoreFor(total)}/${total}`, M+150, doc.y-44, 'F1', 10, '#14202E');
+  doc.text(dateStr, M+150, doc.y-57, 'F1', 9, '#566273');
+  doc.y -= boxH + 22;
+
+  const LETTERS_ = LETTERS;
+  test.questions.forEach((q, i)=>{
+    const ans = test.answers[i];
+    const ok = ans === q.correct;
+    const status = ans === null ? 'SIN RESPONDER' : (ok ? 'ACIERTO' : 'FALLO');
+    const statusCol = ans === null ? '#7A5A00' : (ok ? '#178A4C' : '#C62828');
+    const subj = getSubject(q.subject);
+
+    doc.ensure(70);
+    doc.rect(M, doc.y, 3, 12, subj.color);
+    doc.text(`${i+1}. ${subj.short} · ${q.exam}`.toUpperCase(), M+9, doc.y-9, 'F2', 7.5, '#566273');
+    doc.text(status, W - M - pdfTextWidth(status,'F2',8.5), doc.y-9, 'F2', 8.5, statusCol);
+    doc.y -= 17;
+    doc.para(q.text, M, CW, 'F2', 10.5, '#14202E');
+    doc.y -= 3;
+    q.options.forEach((opt, k)=>{
+      let color = '#3B4656', font = 'F1', suffix = '';
+      if(k === q.correct){ color = '#0F7A40'; font = 'F2'; suffix = ans === k ? '   (tu respuesta · correcta)' : '   (correcta)'; }
+      else if(k === ans){ color = '#C62828'; font = 'F2'; suffix = '   (tu respuesta)'; }
+      const prefix = LETTERS_[k] + ')';
+      const lines = pdfWrap(opt + suffix, font, 9.5, CW - 22);
+      lines.forEach((l, li)=>{
+        doc.ensure(13);
+        if(li === 0) doc.text(prefix, M+6, doc.y-9.5, font, 9.5, color);
+        doc.text(l, M+22, doc.y-9.5, font, 9.5, color);
+        doc.y -= 13;
+      });
+    });
+    doc.y -= 12;
+  });
+  return doc.output();
+}
+function pdfFileName(test){
+  const d = new Date(test.finishedAt || Date.now());
+  const stamp = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + '_' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
+  const label = modeLabel(test).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  return `TES_${label}_${stamp}.pdf`;
+}
+function downloadResultPdf(){
+  if(!currentTest || !currentTest.questions.length) return;
+  try{
+    const bytes = buildResultPdf(currentTest);
+    const blob = new Blob([bytes], {type:'application/pdf'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = pdfFileName(currentTest);
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }catch(e){
+    console.error(e);
+    alert('No se pudo generar el PDF.');
+  }
+}
+
+/* ---------------- INIT ---------------- */
+(function init(){
+  // Descarta un test a medias guardado con un formato antiguo (sin asignatura)
+  const p = loadProgress();
+  if(p && p.currentTest && (!p.currentTest.questions || p.currentTest.questions.some(q=>!q.subject))) clearProgress();
+  document.getElementById('brandLogo').innerHTML = starOfLifeSVG(28);
+  applyThemeIcon();
+  renderHome();
+})();
+</script>
+</body>
+</html>

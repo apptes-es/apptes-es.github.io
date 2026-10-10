@@ -1,0 +1,337 @@
+'use strict';
+/* ---------------- CUENTA Y NUBE (Supabase) ----------------
+   Login opcional con email y contraseña. Si hay sesión, el progreso guardado en Store
+   se sube a la nube y se descarga en cualquier dispositivo. Sin librerías: solo fetch. */
+const SUPABASE_URL = 'https://mqdzwszearfsbracdybq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_xvIkndYAPPAwVbIjMdk5ag_BeEYkTMs'; // clave pública (segura en el navegador gracias a RLS)
+const SITE_URL = 'https://apptes-es.github.io/';
+const SESSION_KEY = 'tes_session_v1';      // no se sincroniza
+const LOCAL_STAMP_KEY = 'tes_local_updated_v1';
+const SYNC_KEYS = [
+  'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
+  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1'
+];
+
+const Cloud = (function(){
+  let session = null;        // {access_token, refresh_token, expires_at, user:{id,email,user_metadata}}
+  let status = 'idle';       // idle | syncing | ok | error | offline
+  let lastSync = null;
+  let pushTimer = null;
+  let applyingRemote = false;
+  let accountMsg = null;     // {type:'ok'|'error', text}
+  let accountView = 'login'; // login | signup | forgot | recovery
+
+  /* ---------- HTTP ---------- */
+  async function api(path, opts){
+    opts = opts || {};
+    const headers = Object.assign({ apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }, opts.headers || {});
+    if(opts.auth !== false && session) headers.Authorization = 'Bearer ' + session.access_token;
+    const res = await fetch(SUPABASE_URL + path, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const text = await res.text();
+    let data = null; try{ data = text ? JSON.parse(text) : null; }catch(e){ data = text; }
+    if(!res.ok){
+      const msg = (data && (data.msg || data.error_description || data.message || data.error)) || ('Error ' + res.status);
+      const err = new Error(msg); err.status = res.status; err.code = data && (data.error_code || data.code); throw err;
+    }
+    return data;
+  }
+
+  /* ---------- SESIÓN ---------- */
+  function saveSession(s){
+    session = s;
+    if(s) Store.setRaw(SESSION_KEY, JSON.stringify(s)); else Store.remove(SESSION_KEY);
+  }
+  function fromTokenResponse(d){
+    return { access_token: d.access_token, refresh_token: d.refresh_token,
+      expires_at: d.expires_at || (Math.floor(Date.now()/1000) + (d.expires_in || 3600)), user: d.user };
+  }
+  async function ensureFreshToken(){
+    if(!session) return false;
+    if(session.expires_at - 60 > Date.now()/1000) return true;
+    try{
+      const d = await api('/auth/v1/token?grant_type=refresh_token', { method:'POST', auth:false, body:{ refresh_token: session.refresh_token } });
+      saveSession(fromTokenResponse(d));
+      return true;
+    }catch(e){
+      if(e.status === 400 || e.status === 401){ saveSession(null); }
+      return false;
+    }
+  }
+  function displayName(){
+    if(!session || !session.user) return '';
+    const m = session.user.user_metadata || {};
+    return m.display_name || (session.user.email || '').split('@')[0];
+  }
+
+  /* ---------- SINCRONIZACIÓN ---------- */
+  function localSnapshot(){ return Store.snapshot(SYNC_KEYS); }
+  function parse(raw, fb){ try{ const v = JSON.parse(raw); return v == null ? fb : v; }catch(e){ return fb; } }
+  // Une local y nube sin perder nada importante
+  function merge(local, remote, localNewer){
+    const out = Object.assign({}, localNewer ? remote : local, localNewer ? local : remote);
+    // Historial: unión de los dos, sin duplicados, el más reciente primero
+    const hist = parse(local['tes_test_history_v1'], []).concat(parse(remote['tes_test_history_v1'], []));
+    const seen = new Set(); const histMerged = [];
+    hist.sort((a,b)=>(b.date||0)-(a.date||0)).forEach(h=>{
+      const k = (h.date||0) + '|' + h.score + '|' + h.total + '|' + h.mode;
+      if(!seen.has(k)){ seen.add(k); histMerged.push(h); }
+    });
+    out['tes_test_history_v1'] = JSON.stringify(histMerged.slice(0,80));
+    // Preguntas dominadas: unión
+    const mastered = new Set(parse(local['tes_mastered_ids_v1'], []).concat(parse(remote['tes_mastered_ids_v1'], [])));
+    out['tes_mastered_ids_v1'] = JSON.stringify(Array.from(mastered));
+    return out;
+  }
+  function isEmptySnapshot(s){
+    return !s || !Object.keys(s).some(k=>{ const v = parse(s[k], null); return v && (Array.isArray(v) ? v.length : Object.keys(v).length); });
+  }
+  function setStatus(s){ status = s; if(s === 'ok') lastSync = Date.now(); updateBadge(); refreshAccountIfOpen(); }
+
+  async function pull(){
+    if(!(await ensureFreshToken())) return;
+    setStatus('syncing');
+    try{
+      const rows = await api('/rest/v1/user_data?select=data,updated_at&user_id=eq.' + session.user.id);
+      const row = rows && rows[0];
+      const remote = (row && row.data && row.data.keys) || {};
+      const remoteStamp = (row && row.data && row.data.stamp) || 0;
+      const local = localSnapshot();
+      const localStamp = Number(Store.getRaw(LOCAL_STAMP_KEY) || 0);
+      let final;
+      if(isEmptySnapshot(remote)) final = local;
+      else if(isEmptySnapshot(local)) final = remote;
+      else final = merge(local, remote, localStamp > remoteStamp);
+      applyingRemote = true;
+      SYNC_KEYS.forEach(k=>{ if(final[k] === undefined) Store.remove(k); });
+      Store.restore(final);
+      applyingRemote = false;
+      await push(true);
+      if(typeof onRemoteApplied === 'function') onRemoteApplied();
+    }catch(e){
+      applyingRemote = false;
+      setStatus(navigator.onLine === false ? 'offline' : 'error');
+    }
+  }
+  async function push(immediate){
+    if(pushTimer){ clearTimeout(pushTimer); pushTimer = null; }
+    if(!immediate){ pushTimer = setTimeout(()=>push(true), 2500); return; }
+    if(!(await ensureFreshToken())) return;
+    setStatus('syncing');
+    try{
+      const stamp = Number(Store.getRaw(LOCAL_STAMP_KEY) || Date.now());
+      await api('/rest/v1/user_data?on_conflict=user_id', {
+        method:'POST', headers:{ Prefer:'resolution=merge-duplicates,return=minimal' },
+        body:{ user_id: session.user.id, data:{ keys: localSnapshot(), stamp }, updated_at: new Date().toISOString() }
+      });
+      setStatus('ok');
+    }catch(e){ setStatus(navigator.onLine === false ? 'offline' : 'error'); }
+  }
+  Store.onChange(key=>{
+    if(applyingRemote || SYNC_KEYS.indexOf(key) === -1) return;
+    Store.setRaw(LOCAL_STAMP_KEY, String(Date.now()));
+    if(session) push(false);
+  });
+  window.addEventListener('pagehide', ()=>{ if(pushTimer && session){ push(true); } });
+  window.addEventListener('online', ()=>{ if(session) pull(); });
+
+  /* ---------- ACCIONES DE CUENTA ---------- */
+  function friendlyError(e){
+    const m = (e.message || '').toLowerCase();
+    if(m.includes('invalid login')) return 'Email o contraseña incorrectos.';
+    if(m.includes('email not confirmed')) return 'Tienes que confirmar tu email antes de entrar. Revisa tu correo (y la carpeta de spam).';
+    if(m.includes('already registered') || m.includes('already been registered')) return 'Ese email ya tiene cuenta. Prueba a iniciar sesión.';
+    if(m.includes('password') && m.includes('6')) return 'La contraseña debe tener al menos 6 caracteres.';
+    if(m.includes('rate limit') || e.status === 429) return 'Demasiados intentos. Espera unos minutos y vuelve a probar.';
+    if(m.includes('failed to fetch') || m.includes('network')) return 'Sin conexión. Revisa tu internet.';
+    return 'No se pudo completar: ' + e.message;
+  }
+  async function login(email, password){
+    const d = await api('/auth/v1/token?grant_type=password', { method:'POST', auth:false, body:{ email, password } });
+    saveSession(fromTokenResponse(d));
+    await pull();
+  }
+  async function signup(email, password, name){
+    const d = await api('/auth/v1/signup?redirect_to=' + encodeURIComponent(SITE_URL), { method:'POST', auth:false,
+      body:{ email, password, data:{ display_name: name } } });
+    if(d && d.access_token){ saveSession(fromTokenResponse(d)); await pull(); return 'in'; }
+    return 'confirm';
+  }
+  async function forgot(email){
+    await api('/auth/v1/recover?redirect_to=' + encodeURIComponent(SITE_URL), { method:'POST', auth:false, body:{ email } });
+  }
+  async function setNewPassword(password){
+    await ensureFreshToken();
+    await api('/auth/v1/user', { method:'PUT', body:{ password } });
+  }
+  async function logout(){
+    if(pushTimer) await push(true);
+    try{ await api('/auth/v1/logout', { method:'POST' }); }catch(e){}
+    saveSession(null);
+    setStatus('idle');
+  }
+
+  // Vuelta desde el enlace del correo (confirmación o recuperar contraseña)
+  async function handleRedirect(){
+    const h = window.location.hash;
+    if(!h || h.indexOf('access_token=') === -1 && h.indexOf('error') === -1) return null;
+    const p = new URLSearchParams(h.slice(1));
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    if(p.get('error')){ accountMsg = { type:'error', text:'El enlace ha caducado o no es válido. Pide uno nuevo.' }; return 'account'; }
+    const tmp = { access_token: p.get('access_token'), refresh_token: p.get('refresh_token'),
+      expires_at: Number(p.get('expires_at')) || (Math.floor(Date.now()/1000) + Number(p.get('expires_in') || 3600)), user:null };
+    session = tmp;
+    try{ tmp.user = await api('/auth/v1/user'); }catch(e){ session = null; return null; }
+    saveSession(tmp);
+    if(p.get('type') === 'recovery'){ accountView = 'recovery'; return 'account'; }
+    accountMsg = { type:'ok', text:'¡Email confirmado! Ya tienes la cuenta activa y tu progreso se guarda en la nube.' };
+    await pull();
+    return 'account';
+  }
+
+  /* ---------- UI ---------- */
+  function updateBadge(){
+    const el = document.getElementById('accountIcon');
+    if(!el) return;
+    el.innerHTML = icon('user', 18);
+    const btn = document.getElementById('accountBtn');
+    if(btn){
+      btn.classList.toggle('logged', !!session);
+      btn.classList.toggle('sync-error', status === 'error' || status === 'offline');
+      btn.setAttribute('aria-label', session ? 'Mi cuenta (' + displayName() + ')' : 'Iniciar sesión');
+    }
+  }
+  function refreshAccountIfOpen(){ if(document.getElementById('accountScreen')) renderAccount(); }
+  function statusText(){
+    if(status === 'syncing') return 'Sincronizando…';
+    if(status === 'error') return 'No se pudo sincronizar. Se reintentará.';
+    if(status === 'offline') return 'Sin conexión. Se guardará al volver internet.';
+    if(lastSync) return 'Guardado en la nube · ' + new Date(lastSync).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+    return 'Listo';
+  }
+  function msgHtml(){
+    if(!accountMsg) return '';
+    return `<div class="acc-msg ${accountMsg.type}">${escapeHtml(accountMsg.text)}</div>`;
+  }
+  function renderAccount(){
+    if(typeof clearTimer === 'function') clearTimer();
+    document.getElementById('topbarSub').textContent = 'Mi cuenta';
+    let inner;
+    if(session && accountView !== 'recovery'){
+      inner = `
+        <div class="acc-card">
+          <div class="acc-avatar">${icon('user', 26)}</div>
+          <div class="acc-name">${escapeHtml(displayName())}</div>
+          <div class="acc-email">${escapeHtml(session.user.email || '')}</div>
+          <div class="acc-status ${status}">${escapeHtml(statusText())}</div>
+        </div>
+        ${msgHtml()}
+        <p class="empty-hint">Tu historial, falladas, logros y el test a medias se guardan en tu cuenta. Entra con el mismo email en otro móvil u ordenador y lo tendrás todo.</p>
+        <button class="btn-primary" data-action="cloudSyncNow">${icon('route',18)} Sincronizar ahora</button>
+        <button class="btn-secondary acc-full" data-action="cloudLogout">Cerrar sesión</button>`;
+    } else if(accountView === 'recovery'){
+      inner = `
+        <div class="section-label">Nueva contraseña</div>
+        ${msgHtml()}
+        <form data-form="recovery" class="acc-form">
+          <label>Nueva contraseña<input name="password" type="password" minlength="6" autocomplete="new-password" required></label>
+          <button class="btn-primary" type="submit">Guardar contraseña</button>
+        </form>`;
+    } else if(accountView === 'signup'){
+      inner = `
+        <div class="section-label">Crear cuenta</div>
+        ${msgHtml()}
+        <form data-form="signup" class="acc-form">
+          <label>Nombre<input name="name" type="text" maxlength="60" autocomplete="nickname" required></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <label>Contraseña<input name="password" type="password" minlength="6" autocomplete="new-password" required></label>
+          <button class="btn-primary" type="submit">Crear cuenta</button>
+        </form>
+        <button class="acc-link" data-action="cloudView" data-args='["login"]'>Ya tengo cuenta · Iniciar sesión</button>`;
+    } else if(accountView === 'forgot'){
+      inner = `
+        <div class="section-label">Recuperar contraseña</div>
+        ${msgHtml()}
+        <form data-form="forgot" class="acc-form">
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <button class="btn-primary" type="submit">Enviar enlace</button>
+        </form>
+        <button class="acc-link" data-action="cloudView" data-args='["login"]'>Volver a iniciar sesión</button>`;
+    } else {
+      inner = `
+        <div class="section-label">Iniciar sesión</div>
+        <p class="empty-hint">Es opcional: la app funciona igual sin cuenta. Con cuenta, tu progreso se guarda en la nube y lo ves en cualquier dispositivo.</p>
+        ${msgHtml()}
+        <form data-form="login" class="acc-form">
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+          <button class="btn-primary" type="submit">Entrar</button>
+        </form>
+        <button class="acc-link" data-action="cloudView" data-args='["forgot"]'>¿Has olvidado la contraseña?</button>
+        <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>`;
+    }
+    document.getElementById('screen').innerHTML = `
+      <div class="home" id="accountScreen">
+        <button class="back-link" data-action="renderHome">${icon('chevronLeft',16)} Inicio</button>
+        ${inner}
+      </div>`;
+  }
+  function setBusy(form, busy){
+    form.querySelectorAll('input,button').forEach(el=>{ el.disabled = busy; });
+    const b = form.querySelector('button[type=submit]');
+    if(b){ if(busy){ b.dataset.label = b.textContent; b.textContent = 'Un momento…'; } else if(b.dataset.label){ b.textContent = b.dataset.label; } }
+  }
+  const FORMS = {
+    async login(f){
+      await login(f.email.value.trim(), f.password.value);
+      accountMsg = { type:'ok', text:'¡Dentro! Tu progreso ya está sincronizado.' };
+    },
+    async signup(f){
+      const r = await signup(f.email.value.trim(), f.password.value, f.name.value.trim());
+      if(r === 'confirm'){ accountView = 'login'; accountMsg = { type:'ok', text:'Te hemos enviado un correo para confirmar la cuenta. Ábrelo desde este dispositivo y quedarás dentro.' }; }
+      else accountMsg = { type:'ok', text:'¡Cuenta creada! Tu progreso ya se guarda en la nube.' };
+    },
+    async forgot(f){
+      await forgot(f.email.value.trim());
+      accountMsg = { type:'ok', text:'Si ese email tiene cuenta, te llegará un enlace para poner una contraseña nueva.' };
+    },
+    async recovery(f){
+      await setNewPassword(f.password.value);
+      accountView = 'login';
+      accountMsg = { type:'ok', text:'Contraseña cambiada. Ya estás dentro.' };
+      await pull();
+    }
+  };
+  document.addEventListener('submit', async e=>{
+    const f = e.target.closest('form[data-form]');
+    if(!f || !FORMS[f.dataset.form]) return;
+    e.preventDefault();
+    accountMsg = null;
+    setBusy(f, true);
+    try{ await FORMS[f.dataset.form](f); renderAccount(); updateBadge(); }
+    catch(err){ accountMsg = { type:'error', text: friendlyError(err) }; renderAccount(); }
+  });
+
+  let onRemoteApplied = null;
+  async function init(onApplied){
+    onRemoteApplied = onApplied;
+    session = parse(Store.getRaw(SESSION_KEY), null);
+    updateBadge();
+    const r = await handleRedirect();
+    updateBadge();
+    if(r === 'account'){ renderAccount(); return; }
+    if(session) pull();
+  }
+
+  return {
+    init, renderAccount,
+    view(v){ accountView = v; accountMsg = null; renderAccount(); },
+    syncNow(){ pull(); },
+    async logout(){ await logout(); accountView = 'login'; accountMsg = { type:'ok', text:'Sesión cerrada. Tu progreso sigue guardado en este dispositivo.' }; renderAccount(); updateBadge(); },
+    isLogged(){ return !!session; }
+  };
+})();
+
+function openAccount(){ Cloud.renderAccount(); window.scrollTo(0,0); }
+function cloudView(v){ Cloud.view(v); }
+function cloudSyncNow(){ Cloud.syncNow(); }
+function cloudLogout(){ Cloud.logout(); }

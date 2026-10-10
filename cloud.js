@@ -191,14 +191,14 @@ const Cloud = (function(){
       await ensureFreshToken();
       await flushScores();
       const [prof, rows] = await Promise.all([
-        api('/rest/v1/profiles?select=display_name,show_in_ranking&id=eq.' + session.user.id),
+        api('/rest/v1/profiles?select=display_name&id=eq.' + session.user.id),
         api('/rest/v1/rpc/weekly_ranking', { method:'POST', body:{} })
       ]);
-      rankingProfile = (prof && prof[0]) || { display_name: displayName(), show_in_ranking: false };
+      rankingProfile = (prof && prof[0]) || { display_name: displayName() };
       if(!box.isConnected) return;
       const me = rows.find(r=>r.is_me);
       const list = rows.length ? rows.map(r=>{
-        const medal = r.rank <= 3 ? `<span class="rank-medal m${r.rank}">${r.rank}</span>` : `<span class="rank-pos">${r.rank}</span>`;
+        const medal = (r.rank <= 3 && r.points > 0) ? `<span class="rank-medal m${r.rank}">${r.rank}</span>` : `<span class="rank-pos">${r.rank}</span>`;
         return `<li class="${r.is_me ? 'me' : ''}">${medal}<span class="rank-name">${escapeHtml(r.display_name)}${r.is_me ? ' <em>(tú)</em>' : ''}</span>
           <span class="rank-tests">${r.tests} ${r.tests == 1 ? 'test' : 'tests'}</span><b class="rank-pts">${r.points}</b></li>`;
       }).join('') : '';
@@ -208,13 +208,12 @@ const Cloud = (function(){
           ${me ? `<div class="rank-mine"><b>${me.points}</b><span>tus puntos · ${me.rank}º</span></div>` : ''}
         </div>
         <div class="rank-settings">
-          <label class="rank-toggle"><input type="checkbox" id="rankToggle" ${rankingProfile.show_in_ranking ? 'checked' : ''} data-change="cloudToggleRanking"> Aparecer en el ranking</label>
+          <span class="rank-toggle">${icon('user',16)} Todos los alumnos con cuenta aparecen</span>
           <label class="rank-namefield" for="rankName">Nombre visible
             <input type="text" id="rankName" maxlength="24" value="${escapeHtml(rankingProfile.display_name || '')}" data-change="cloudSetRankName">
           </label>
         </div>
-        ${!rankingProfile.show_in_ranking ? `<p class="empty-hint">Ahora mismo no apareces. Tus puntos se guardan igualmente y se verán en cuanto actives la casilla.</p>` : ''}
-        ${list ? `<ol class="rank-list">${list}</ol>` : `<p class="empty-hint">Nadie ha puntuado todavía esta semana. ¡Haz un test y estrena el ranking!</p>`}
+        ${list ? `<ol class="rank-list">${list}</ol>` : `<p class="empty-hint">Todavía no hay nadie en el ranking.</p>`}
         <p class="rank-rules">1 punto por cada acierto · +10 por aprobar un simulacro de examen. Solo cuentan los tests hechos con la sesión iniciada.</p>`;
     }catch(e){
       if(box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo cargar el ranking. ${escapeHtml(friendlyError(e))}</p>`;

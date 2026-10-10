@@ -728,18 +728,19 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 
 /* ---------------- MOVIMIENTO ---------------- */
 @keyframes pop{0%{transform:scale(0.65);} 65%{transform:scale(1.15);} 100%{transform:scale(1);}}
-.option.correct .letter, .option.incorrect .letter{animation:pop .28s ease;}
+.option.just .letter{animation:pop .28s ease;}
+.option.correct.just{animation:correctGlow .5s ease;}
 @keyframes shake{
   10%,90%{transform:translateX(-1px);}
   20%,80%{transform:translateX(2px);}
   30%,50%,70%{transform:translateX(-4px);}
   40%,60%{transform:translateX(4px);}
 }
-.option.incorrect{animation:shake .4s ease;}
+.option.incorrect.just{animation:shake .4s ease;}
 @keyframes feedbackIn{from{opacity:0; transform:translateY(-5px);} to{opacity:1; transform:translateY(0);}}
 .feedback.show{animation:feedbackIn .22s ease;}
 @keyframes cardIn{from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:translateY(0);}}
-.q-card{animation:cardIn .18s ease;}
+.q-card.q-enter{animation:qIn .3s cubic-bezier(.22,.8,.32,1);}
 @keyframes scoreIn{from{opacity:0; transform:scale(0.94);} to{opacity:1; transform:scale(1);}}
 .result-hero{animation:scoreIn .32s cubic-bezier(.22,.8,.32,1);}
 
@@ -843,3 +844,154 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .ed-field > span{display:inline-flex; align-items:center; gap:6px;}
 
 .acc-forgot{text-align:center; font-size:13px; margin:2px 0 6px;}
+
+
+/* =========================================================
+   RACHA, RANGOS, CALENDARIO, EFECTOS Y DUELOS
+   ========================================================= */
+@keyframes qIn{from{opacity:0; transform:translateX(18px);} to{opacity:1; transform:translateX(0);}}
+@keyframes correctGlow{0%{box-shadow:0 0 0 0 rgba(47,163,91,.55);} 100%{box-shadow:0 0 0 12px rgba(47,163,91,0);}}
+@keyframes popIn{0%{opacity:0; transform:scale(.7);} 60%{opacity:1; transform:scale(1.06);} 100%{transform:scale(1);}}
+@keyframes flicker{0%,100%{transform:scale(1) rotate(-2deg);} 50%{transform:scale(1.12) rotate(3deg);}}
+.pop{animation:popIn .45s cubic-bezier(.22,.8,.32,1) both;}
+.confetti-canvas{position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:9999;}
+
+/* --- colores de rango --- */
+.pc-rank{width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#fff; box-shadow:inset 0 -3px 0 rgba(0,0,0,.18);}
+.rank-0{background:#7A8899;}
+.rank-1{background:#2F8CFF;}
+.rank-2{background:#2FA35B;}
+.rank-3{background:#7B4FD6;}
+.rank-4{background:#E0312B;}
+.rank-5{background:linear-gradient(135deg,#F5C518,#E08A00); color:var(--navy);}
+.rank-6{background:linear-gradient(135deg,#10233D,#2F8CFF 45%,#F5C518); box-shadow:0 0 0 3px rgba(245,197,24,.45);}
+
+/* --- tarjeta del jugador --- */
+.player-card{
+  display:flex; align-items:center; gap:12px; width:100%;
+  margin-top:16px; padding:12px 14px;
+  background:var(--card-bg); border:1px solid var(--border); border-radius:16px;
+  font-family:inherit; color:var(--text); text-align:left; cursor:pointer;
+  transition:transform .1s ease;
+}
+.player-card:active{transform:scale(.985);}
+.pc-body{flex:1; min-width:0;}
+.pc-top{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
+.pc-top b{font-family:var(--font-head); font-size:18px; text-transform:uppercase; letter-spacing:.02em; line-height:1.1;}
+.pc-top span{font-size:12.5px; color:var(--text-muted); font-weight:700; white-space:nowrap;}
+.pc-bar{height:8px; background:var(--border); border-radius:6px; overflow:hidden; margin:6px 0 4px;}
+.pc-bar div{height:100%; border-radius:6px; background:repeating-linear-gradient(90deg, var(--hivis) 0 10px, var(--hivis-green) 10px 20px); transition:width .6s ease;}
+.pc-next{font-size:12px; color:var(--text-muted);}
+.pc-next b{color:var(--text); font-weight:700;}
+.pc-streak{display:flex; flex-direction:column; align-items:center; min-width:52px; padding:4px 6px; border-radius:12px; line-height:1;}
+.pc-streak b{font-family:var(--font-head); font-size:22px;}
+.pc-streak small{font-size:11px; color:var(--text-muted); margin-top:2px;}
+.pc-streak .flame{display:block; height:22px;}
+.pc-streak.on{background:#FFF1DE; color:#E0601B;}
+.pc-streak.on .flame{animation:flicker 1.6s ease-in-out infinite;}
+.pc-streak.risk{background:var(--banner-bg); color:#D98A00;}
+.pc-streak.off{background:var(--tap-bg); color:var(--text-muted);}
+[data-theme="dark"] .pc-streak.on{background:#3A2412; color:#FF9A4D;}
+.pc-hint{font-size:12.5px; color:var(--text-muted); margin:6px 4px 0; display:flex; gap:5px; align-items:center;}
+
+/* --- pestañas: 4 en una fila --- */
+.home-tabs.four .home-tab{font-size:13.5px; padding:10px 3px; letter-spacing:.01em; position:relative;}
+.tab-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--siren); vertical-align:top; margin-left:2px;}
+
+/* --- anillo de progreso en las asignaturas --- */
+.sc-ring{
+  --p:0;
+  width:54px; height:54px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background:conic-gradient(var(--sc) calc(var(--p) * 1%), var(--border) 0);
+}
+.sc-ring .sc-icon{width:44px; height:44px; border-radius:50%; background:var(--card-bg); box-shadow:inset 0 0 0 40px color-mix(in srgb, var(--sc) 12%, transparent);}
+
+/* --- calendario --- */
+.cal-card{background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:14px;}
+.cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.cal-head b{font-family:var(--font-head); font-size:18px; text-transform:uppercase; letter-spacing:.03em;}
+.cal-nav{border:none; background:var(--tap-bg); color:var(--text); width:34px; height:34px; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+.cal-nav:disabled{opacity:.35; cursor:default;}
+.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:5px;}
+.cal-dow{margin-bottom:5px;}
+.cal-dow span{text-align:center; font-size:11px; font-weight:700; color:var(--text-muted);}
+.cal-cell{aspect-ratio:1; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:var(--text-muted); background:var(--bg);}
+.cal-cell.empty{background:transparent;}
+.cal-cell.l1{background:#FFE7A8; color:#7A5A00;}
+.cal-cell.l2{background:#F5C518; color:var(--navy);}
+.cal-cell.l3{background:#2FA35B; color:#fff;}
+[data-theme="dark"] .cal-cell.l1{background:#4A3B0E; color:#F2D675;}
+.cal-cell.today{outline:2px solid var(--primary); outline-offset:-2px;}
+.cal-stats{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:12px; text-align:center;}
+.cal-stats b{display:block; font-family:var(--font-head); font-size:22px; color:var(--text); line-height:1.1;}
+.cal-stats span{font-size:11px; color:var(--text-muted);}
+.cal-legend{display:flex; align-items:center; justify-content:flex-end; gap:4px; margin-top:10px; font-size:11px; color:var(--text-muted);}
+.cal-legend i{width:12px; height:12px; border-radius:3px; background:var(--bg); display:inline-block;}
+.cal-legend i.l1{background:#FFE7A8;} .cal-legend i.l2{background:#F5C518;} .cal-legend i.l3{background:#2FA35B;}
+
+/* --- lista de rangos --- */
+.ranks-list{display:flex; flex-direction:column; gap:6px;}
+.rank-step{display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:12px; background:var(--card-bg); border:1px solid var(--border); opacity:.55;}
+.rank-step .pc-rank{width:36px; height:36px;}
+.rank-step b{display:block; font-size:14.5px;}
+.rank-step span{font-size:12px; color:var(--text-muted);}
+.rank-step.done{opacity:1;}
+.rank-step.current{border-color:var(--hivis); box-shadow:0 0 0 2px color-mix(in srgb, var(--hivis) 45%, transparent);}
+.achv-count{font-size:13px; color:var(--text-muted); margin:-4px 0 8px;}
+
+/* --- combos dentro del test --- */
+.combo-badge.c5{background:linear-gradient(90deg,#FF8A3D,#E0312B); color:#fff;}
+.combo-badge.c10{background:linear-gradient(90deg,#E0312B,#7B4FD6); color:#fff; animation:comboPop .25s ease, flicker 1.2s ease-in-out .3s infinite;}
+.combo-chip{display:inline-flex; align-items:center; gap:2px; margin-left:6px; padding:1px 7px; border-radius:999px; background:var(--hivis); color:var(--navy); font-weight:800; font-size:11.5px;}
+.combo-chip.c5{background:#FF8A3D; color:#fff;}
+.combo-chip.c10{background:#E0312B; color:#fff;}
+
+/* --- resultados: XP, ascenso, racha --- */
+.xp-row{display:flex; align-items:center; gap:12px; background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:12px 14px; margin-bottom:10px;}
+.xp-gain{font-family:var(--font-head); font-size:26px; font-weight:800; color:var(--hivis-green); white-space:nowrap; animation:popIn .5s ease both;}
+.xp-rank{flex:1; min-width:0;}
+.xp-rank span{font-size:12.5px; color:var(--text-muted);}
+.rankup-banner{display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:16px; margin-bottom:10px; background:linear-gradient(135deg, var(--navy), var(--navy-2) 60%, var(--primary)); color:#fff;}
+.rankup-banner .pc-rank{width:58px; height:58px;}
+.rankup-banner span{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--hivis); font-weight:800;}
+.rankup-banner b{font-family:var(--font-head); font-size:24px; text-transform:uppercase; line-height:1.1;}
+.streak-banner{display:flex; align-items:center; gap:8px; padding:11px 14px; border-radius:12px; margin-bottom:10px; background:#FFF1DE; color:#C2510F; font-weight:700; font-size:14px;}
+[data-theme="dark"] .streak-banner{background:#3A2412; color:#FF9A4D;}
+
+/* --- ranking: racha --- */
+.rank-streak{display:inline-flex; align-items:center; gap:1px; margin-left:6px; padding:0 6px; border-radius:999px; background:#FFF1DE; color:#E0601B; font-size:12px; font-weight:800; vertical-align:1px;}
+[data-theme="dark"] .rank-streak{background:#3A2412; color:#FF9A4D;}
+
+/* --- duelos --- */
+.duels-box .section-label{margin-top:18px;}
+.duel-invite{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; border-radius:14px; background:var(--banner-bg); border:1.5px solid var(--hivis); margin-bottom:6px; animation:popIn .45s ease both;}
+.duel-invite b{display:block; font-family:var(--font-head); font-size:18px; text-transform:uppercase;}
+.duel-invite span{font-size:13px; color:var(--text-muted);}
+.duel-new,.duel-join{background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:2px 14px 14px; margin-top:10px;}
+.duel-new .empty-hint{margin-top:0;}
+.duel-field{display:flex; flex-direction:column; gap:6px; font-size:14px; font-weight:600; margin-bottom:12px;}
+.duel-field select,.duel-join-row input{font:inherit; font-size:16px; padding:11px 12px; border-radius:11px; border:1.5px solid var(--border); background:var(--bg); color:var(--text); width:100%; box-sizing:border-box;}
+.duel-join-row{display:flex; gap:8px; align-items:center;}
+.duel-join-row input{text-transform:uppercase; letter-spacing:.15em; font-weight:700;}
+.duel-list{display:flex; flex-direction:column; gap:8px;}
+.duel-row{display:flex; align-items:center; gap:10px; padding:11px 12px 11px 16px; border-radius:12px; background:var(--card-bg); border:1px solid var(--border); position:relative; overflow:hidden;}
+.duel-row::before{content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--sc);}
+.dr-main{flex:1; min-width:0;}
+.dr-main b{display:block; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.dr-main span{font-size:12px; color:var(--text-muted);}
+.dr-score{font-family:var(--font-head); font-size:22px; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums;}
+.duel-row.win{border-color:var(--hivis-green);} .duel-row.win .dr-score{color:var(--ok);}
+.duel-row.lose .dr-score{color:var(--danger);}
+.duel-row.turn{border-color:var(--hivis); background:var(--banner-bg);}
+.duel-result{margin-bottom:12px;}
+.duel-card{background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; display:flex; flex-direction:column; gap:10px; animation:popIn .45s ease both;}
+.duel-verdict{font-family:var(--font-head); font-size:24px; text-transform:uppercase; display:flex; align-items:center; justify-content:center; gap:8px;}
+.duel-verdict.win{color:var(--ok);} .duel-verdict.lose{color:var(--danger);} .duel-verdict.tie,.duel-verdict.wait{color:var(--accent-text);}
+.duel-score{display:flex; align-items:center; justify-content:center; gap:18px;}
+.duel-score > div{display:flex; flex-direction:column; align-items:center; min-width:80px;}
+.duel-score span{font-size:13px; color:var(--text-muted); max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.duel-score b{font-family:var(--font-head); font-size:42px; line-height:1; color:var(--text);}
+.duel-score small{font-size:12px; color:var(--text-muted);}
+.duel-score .vs{font-family:var(--font-head); font-size:20px; font-weight:800; color:var(--siren); min-width:0;}
+.duel-code{font-family:var(--font-head); font-size:20px; letter-spacing:.12em; color:var(--text); font-style:normal;}

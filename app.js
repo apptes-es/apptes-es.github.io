@@ -4,6 +4,8 @@ let currentTest = null; // {mode, subject, label, questions:[...], answers:[...]
 let currentIndex = 0;
 let timerInterval = null;
 let lastWrongIds = [];
+let lastQuizIndex = -1;   // para animar la entrada de cada pregunta
+let justAnswered = false; // para animar la respuesta recién elegida
 let homeTab = 'asignaturas';   // 'asignaturas' | 'progreso'
 let subjectTab = 'practicar';  // 'practicar' | 'progreso'
 let currentSubjectId = null;
@@ -359,15 +361,38 @@ const REGULAR_ACHIEVEMENTS = [
     check:h=>{ const s=new Set(h.filter(e=>e.subject && (e.mode==='subject'||e.mode==='exam')).map(e=>e.subject)); return SUBJECTS.filter(x=>questionsOf(x.id).length).every(x=>s.has(x.id)); }},
   {id:'ritmo_sinusal', icon:'pulse', title:'Ritmo sinusal', desc:'Encadena 10 aciertos seguidos en un test.',
     check:h=>h.some(e=>(e.maxCombo||0)>=10)},
+  {id:'simulacro_superado', icon:'siren', title:'Simulacro superado', desc:'Aprueba un simulacro de examen.',
+    check:h=>h.some(e=>e.mode==='subject' && e.score>=passScoreFor(e.total||TEST_SIZE))},
+  {id:'racha_3', icon:'flame', title:'Tres guardias seguidas', desc:'Estudia 3 días seguidos.',
+    check:(h,st)=>Math.max(st.bestStreak, streakInfo(st.days).best)>=3},
+  {id:'racha_7', icon:'flame', title:'Semana de guardia', desc:'Estudia 7 días seguidos.',
+    check:(h,st)=>Math.max(st.bestStreak, streakInfo(st.days).best)>=7},
+  {id:'racha_30', icon:'flame', title:'Un mes sin bajas', desc:'Estudia 30 días seguidos.',
+    check:(h,st)=>Math.max(st.bestStreak, streakInfo(st.days).best)>=30},
+  {id:'doble_turno', icon:'clock', title:'Doble turno', desc:'Haz 5 tests en un mismo día.',
+    check:(h,st)=>Object.keys(st.days).some(k=>(st.days[k].t||0)>=5)},
+  {id:'turno_noche', icon:'moon', title:'Turno de noche', desc:'Termina un test entre las 0:00 y las 6:00.',
+    check:h=>h.some(e=>{ const hr = new Date(e.date).getHours(); return hr < 6; })},
+  {id:'mil_aciertos', icon:'award', title:'Mil pacientes atendidos', desc:'Llega a 1.000 aciertos en total.',
+    check:(h,st)=>Object.keys(st.days).reduce((n,k)=>n+(st.days[k].c||0),0)>=1000},
+  {id:'especialista', icon:'shield', title:'Especialista', desc:'Domina el 100% de las preguntas de una asignatura.',
+    check:()=>SUBJECTS.some(x=>questionsOf(x.id).length && subjectMastery(x.id)===100)},
+  {id:'jefe_dotacion', icon:'truck', title:'Jefe de dotación', desc:'Alcanza el rango de Jefe de dotación.',
+    check:(h,st)=>rankFor(st.xp).idx>=4},
+  {id:'duelista', icon:'award', title:'Duelista', desc:'Gana un duelo contra un compañero.', social:true,
+    check:(h,st)=>st.duelsWon.length>=1},
 ];
 const GRAND_MASTER_ACHIEVEMENT = {
   id:'leyenda_112', icon:'medal', title:'Leyenda del 112',
-  desc:`Consigue todos los demás logros y acierta alguna vez las ${QUESTIONS.length} preguntas del banco.`,
+  desc:`Consigue todos los demás logros (menos el de duelos) y acierta alguna vez las ${QUESTIONS.length} preguntas del banco.`,
   legendary:true,
-  check:h => REGULAR_ACHIEVEMENTS.every(a=>a.check(h)) && isFullMastery()
+  check:(h,st) => REGULAR_ACHIEVEMENTS.filter(a=>!a.social).every(a=>a.check(h,st) || st.badges.includes(a.id)) && isFullMastery()
 };
 const ACHIEVEMENTS = [...REGULAR_ACHIEVEMENTS, GRAND_MASTER_ACHIEVEMENT];
-function getAchievements(history){ return ACHIEVEMENTS.map(a=>({...a, earned:a.check(history)})); }
+function getAchievements(history){
+  const st = loadStats();
+  return ACHIEVEMENTS.map(a=>{ let earned = st.badges.includes(a.id); if(!earned){ try{ earned = !!a.check(history, st); }catch(e){} } return {...a, earned}; });
+}
 function computeMaxCombo(test){
   let maxCombo=0, run=0;
   test.questions.forEach((q,i)=>{
@@ -430,6 +455,7 @@ function modeLabel(test){
   if(test.mode === 'review') return 'Repaso de falladas';
   if(test.mode === 'failed') return 'Falladas guardadas' + (s ? ' · ' + s.short : '');
   if(test.mode === 'unverified') return 'Preguntas no verificadas';
+  if(test.mode === 'duel') return 'Duelo' + (s ? ' · ' + s.short : '');
   return 'Test';
 }
 function historyTag(h){
@@ -438,6 +464,7 @@ function historyTag(h){
   if(h.mode === 'exam') return s.short + ' · ' + h.label;
   if(h.mode === 'review' || h.mode === 'failed') return 'Repaso' + (s ? ' · ' + s.short : '');
   if(h.mode === 'unverified') return 'Revisión';
+  if(h.mode === 'duel') return 'Duelo' + (s ? ' · ' + s.short : '');
   return 'Test';
 }
 
@@ -526,6 +553,7 @@ function applyTimedMode(){
 function launch(test, allowTimed){
   if(!test.questions.length) return;
   currentTest = test;
+  lastQuizIndex = -1;
   if(allowTimed) applyTimedMode();
   currentIndex = 0;
   saveProgress();
@@ -560,6 +588,7 @@ function repeatTest(){
   else if(t.mode === 'review') startReviewTest(t.questions.map(q=>q.id), 'review', t.subject);
   else if(t.mode === 'unverified') startUnverifiedTest(t.subject);
   else if(t.mode === 'failed') startFailedTest(t.subject);
+  else if(t.mode === 'duel') openDuels();
   else renderHome();
 }
 function continueTest(){
@@ -575,6 +604,7 @@ function discardProgress(){
   if(currentSubjectId) renderSubject(currentSubjectId); else renderHome();
 }
 function backToMenu(){
+  if(currentTest && currentTest.mode === 'duel'){ openDuels(); return; }
   if(currentTest && currentTest.subject) renderSubject(currentTest.subject);
   else renderHome();
 }
@@ -758,7 +788,7 @@ function renderHome(){
     const nt = temasOf(s.id).length;
     const m = subjectMastery(s.id);
     return `<button type="button" class="subject-card" style="--sc:${s.color}" data-action="openSubject" data-args='["${s.id}"]' ${n?'':'disabled'}>
-      <div class="sc-icon">${icon(s.icon, 26)}</div>
+      <div class="sc-ring" style="--p:${m}" aria-hidden="true"><div class="sc-icon">${icon(s.icon, 24)}</div></div>
       <div class="sc-body">
         <b>${escapeHtml(s.name)}</b>
         <span>${n ? `${n} preguntas · ${nt} ${nt===1?'tema':'temas'} · ${m}% dominado` : 'Próximamente'}</span>
@@ -771,7 +801,8 @@ function renderHome(){
 
   const bestPercent = getBestPercent(history);
   const achievements = getAchievements(history);
-  const achvHtml = '<div class="achv-grid">' + achievements.map(a=>`
+  const earnedCount = achievements.filter(a=>a.earned).length;
+  const achvHtml = `<p class="achv-count">${earnedCount} de ${achievements.length} conseguidos</p>` + '<div class="achv-grid">' + achievements.map(a=>`
     <div class="achv-item ${a.earned?'':'locked'} ${a.legendary?'legendary':''}">
       <div class="achv-icon">${icon(a.icon || 'award', a.legendary?26:22)}</div>
       <b>${a.title}</b>
@@ -803,10 +834,13 @@ function renderHome(){
         </div>
       </div>
 
-      <div class="home-tabs">
+      ${playerCardHtml()}
+
+      <div class="home-tabs four">
         <button class="home-tab ${homeTab==='asignaturas'?'active':''}" data-action="switchHomeTab" data-args='["asignaturas"]'>Asignaturas</button>
         <button class="home-tab ${homeTab==='progreso'?'active':''}" data-action="switchHomeTab" data-args='["progreso"]'>Progreso</button>
         <button class="home-tab ${homeTab==='ranking'?'active':''}" data-action="switchHomeTab" data-args='["ranking"]'>Ranking</button>
+        <button class="home-tab ${homeTab==='duelos'?'active':''}" data-action="switchHomeTab" data-args='["duelos"]'>Duelos${Store.getRaw(PENDING_DUEL_KEY) ? ' <i class="tab-dot"></i>' : ''}</button>
       </div>
 
       ${homeTab === 'asignaturas' ? `
@@ -816,7 +850,15 @@ function renderHome(){
 
       ` : homeTab === 'ranking' ? `
       <div id="rankingBox" class="ranking-box"><p class="empty-hint">Cargando ranking…</p></div>
+      ` : homeTab === 'duelos' ? `
+      <div id="duelsBox" class="duels-box"></div>
       ` : `
+      <div class="section-label">Calendario de estudio</div>
+      ${calendarHtml()}
+
+      <div class="section-label">Rangos</div>
+      ${ranksListHtml()}
+
       ${bestPercent !== null ? `
       <div class="section-label">Récord personal</div>
       <div class="record-card">
@@ -837,6 +879,7 @@ function renderHome(){
     <footer class="note">Aprobado orientativo: 50% de aciertos. Contrasta siempre con tus apuntes y el material oficial del ciclo.</footer>
   `;
   if(homeTab === 'ranking') Cloud.renderRanking(document.getElementById('rankingBox'));
+  if(homeTab === 'duelos') renderDuelsTab(document.getElementById('duelsBox'));
 }
 function switchHomeTab(tab){ homeTab = tab; renderHome(); }
 
@@ -934,8 +977,8 @@ function renderQuiz(){
     let state = '';
     if(answered){
       cls += ' disabled';
-      if(i===q.correct){ cls += ' correct'; state = ', correcta'; }
-      else if(i===userAnswer){ cls += ' incorrect'; state = ', tu respuesta, incorrecta'; }
+      if(i===q.correct){ cls += ' correct'; state = ', correcta'; if(justAnswered) cls += ' just'; }
+      else if(i===userAnswer){ cls += ' incorrect'; state = ', tu respuesta, incorrecta'; if(justAnswered) cls += ' just'; }
     } else if(i===userAnswer){
       cls += ' selected';
     }
@@ -957,7 +1000,7 @@ function renderQuiz(){
     while(lastAnsweredIdx>=0 && currentTest.answers[lastAnsweredIdx]===null) lastAnsweredIdx--;
     const combo = currentCombo();
     if(correct && combo >= 3 && currentIndex === lastAnsweredIdx){
-      feedbackHtml += `<div class="combo-badge">${icon('pulse',15)} ¡${combo} seguidas! Ritmo constante</div>`;
+      feedbackHtml += comboHtml(combo);
     }
   }
   const mascotState = !answered ? 'neutral' : (userAnswer === q.correct ? 'happy' : 'sad');
@@ -979,15 +1022,19 @@ function renderQuiz(){
   const answeredCount = currentTest.answers.filter(a=>a!==null).length;
   const timerHtml = currentTest.timed ? ` · <span class="timer" id="timerDisplay">${icon('clock',13)} --:--</span>` : '';
   const progressPct = total > 0 ? (answeredCount/total*100) : 0;
+  const liveCombo = currentCombo();
+  const comboChip = liveCombo >= 3 ? ` <span class="combo-chip ${liveCombo>=10?'c10':liveCombo>=5?'c5':''}">${icon('flame',12)} x${liveCombo}</span>` : '';
+  const entering = currentIndex !== lastQuizIndex;
+  lastQuizIndex = currentIndex;
 
   document.getElementById('screen').innerHTML = `
     <div class="quiz" style="--sc:${subj.color}">
       <div class="progress-wrap">
         <div class="progress-bar"><div class="progress-fill" style="width:${progressPct}%"></div></div>
-        <div class="progress-text"><span>Pregunta ${currentIndex+1}/${total}</span><span>${answeredCount} respondidas${timerHtml}</span></div>
+        <div class="progress-text"><span>Pregunta ${currentIndex+1}/${total}${comboChip}</span><span>${answeredCount} respondidas${timerHtml}</span></div>
       </div>
 
-      <div class="q-card">
+      <div class="q-card ${entering && !prefersReducedMotion() ? 'q-enter' : ''}">
         <div class="q-card-head">
           <div class="q-tag">${escapeHtml(subj.short)}<small>${escapeHtml(q.exam)}</small></div>
           <div class="mascot ${answered?'react':''}">${mascotSVG(mascotState, 46)}</div>
@@ -1009,6 +1056,7 @@ function renderQuiz(){
     </div>
   `;
   if(currentTest.timed) updateTimerDisplay();
+  justAnswered = false;
   saveProgress();
 }
 
@@ -1018,6 +1066,9 @@ function selectAnswer(i){
   if(!currentTest.phrases) currentTest.phrases = new Array(currentTest.questions.length).fill(null);
   const q = currentTest.questions[currentIndex];
   currentTest.phrases[currentIndex] = pickPhrase(i === q.correct, LETTERS[q.correct]);
+  if(i === q.correct) vibrate(currentCombo() >= 5 ? [12,40,12] : 12);
+  else vibrate([70,50,70]);
+  justAnswered = true;
   renderQuiz();
 }
 function nextQuestion(){ if(currentIndex < currentTest.questions.length-1){ currentIndex++; renderQuiz(); } }
@@ -1050,7 +1101,9 @@ function finishTest(timeUp){
   const prevBest = getBestPercent(historyBefore);
   const achvBefore = getAchievements(historyBefore).filter(a=>a.earned).map(a=>a.id);
 
-  saveHistoryEntry({date:Date.now(), score, total, mode:currentTest.mode, subject:currentTest.subject, label:currentTest.label, subjBreakdown, temaBreakdown, maxCombo});
+  const entry = {date:Date.now(), score, total, mode:currentTest.mode, subject:currentTest.subject, label:currentTest.label, subjBreakdown, temaBreakdown, maxCombo};
+  saveHistoryEntry(entry);
+  const xpInfo = recordTestStats(entry);
   // Puntos del ranking semanal: 1 por acierto y +10 por aprobar un simulacro
   if(total > 0) Cloud.recordScore({ subject: currentTest.subject, mode: currentTest.mode, correct: score, total,
     points: score + ((currentTest.mode === 'subject' && score >= passScoreFor(total)) ? 10 : 0) });
@@ -1061,11 +1114,13 @@ function finishTest(timeUp){
   const newPercent = Math.round(score/total*100);
   const isNewRecord = historyBefore.length>0 && (prevBest===null || newPercent>prevBest);
   const newlyUnlocked = getAchievements(loadHistory()).filter(a=>a.earned && !achvBefore.includes(a.id));
+  persistBadges();
 
-  renderResults(score, total, !!timeUp, isNewRecord, newlyUnlocked);
+  renderResults(score, total, !!timeUp, isNewRecord, newlyUnlocked, xpInfo);
+  if(currentTest.mode === 'duel' && currentTest.duel) submitAndShowDuel(currentTest, score);
 }
 
-function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked){
+function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked, xpInfo){
   window.scrollTo(0,0);
   document.getElementById('topbarSub').textContent = 'Resultado · ' + modeLabel(currentTest);
   const passScore = passScoreFor(total);
@@ -1098,7 +1153,25 @@ function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked){
   const grandMasterEntry = newlyUnlocked.find(a=>a.id===GRAND_MASTER_ACHIEVEMENT.id);
   const otherNewlyUnlocked = newlyUnlocked.filter(a=>a.id!==GRAND_MASTER_ACHIEVEMENT.id);
   const recordHtml = (pass && isNewRecord) ? `<div class="celebrate-banner">${icon('award',17)} Nuevo récord personal: ${pct}%</div>` : '';
-  const achvHtml = otherNewlyUnlocked.map(a=>`<div class="celebrate-banner">${icon(a.icon||'award',17)} Logro desbloqueado: ${a.title}</div>`).join('');
+  const achvHtml = otherNewlyUnlocked.map(a=>`<div class="celebrate-banner pop">${icon(a.icon||'award',17)} Logro desbloqueado: ${a.title}</div>`).join('');
+  let xpHtml = '', rankUp = false;
+  if(xpInfo){
+    const rb = rankFor(xpInfo.xpBefore), ra = rankFor(xpInfo.xpAfter);
+    rankUp = ra.idx > rb.idx;
+    const streakUp = xpInfo.firstToday && xpInfo.streakAfter > xpInfo.streakBefore;
+    xpHtml = `
+      ${rankUp ? `<div class="rankup-banner pop">
+        <div class="pc-rank rank-${ra.idx}">${icon(ra.rank.icon, 30)}</div>
+        <div><span>¡Ascenso!</span><b>${escapeHtml(ra.rank.name)}</b></div>
+      </div>` : ''}
+      <div class="xp-row">
+        <div class="xp-gain">+${xpInfo.gained} XP</div>
+        <div class="xp-rank"><div class="pc-bar"><div style="width:${ra.pct}%"></div></div><span>${escapeHtml(ra.rank.name)}${ra.next ? ' · ' + ra.toNext + ' XP para ' + escapeHtml(ra.next.name) : ''}</span></div>
+      </div>
+      ${streakUp ? `<div class="streak-banner pop">${icon('flame',18)} Racha de ${xpInfo.streakAfter} ${xpInfo.streakAfter===1?'día':'días'} · ¡vuelve mañana!</div>` : ''}`;
+  }
+  const isDuel = currentTest.mode === 'duel';
+  const duelHtml = isDuel ? `<div id="duelResult" class="duel-result"><p class="empty-hint">Enviando tu resultado del duelo…</p></div>` : '';
   const legendaryHtml = grandMasterEntry ? `
     <div class="legendary-banner">
       ${confettiHtml(40)}
@@ -1109,7 +1182,7 @@ function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked){
     </div>
   ` : '';
 
-  const backLabel = currentTest.subject ? 'Volver a la asignatura' : 'Ir al inicio';
+  const backLabel = isDuel ? 'Volver a duelos' : (currentTest.subject ? 'Volver a la asignatura' : 'Ir al inicio');
 
   document.getElementById('screen').innerHTML = `
     <div class="results">
@@ -1123,6 +1196,9 @@ function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked){
         <div class="verdict">${pass ? icon('check',14)+' APTO (orientativo)' : icon('cross',14)+' NO APTO · A REFORZAR'}</div>
       </div>
 
+      ${duelHtml}
+      ${xpHtml}
+
       ${total ? `<button class="btn-pdf" data-action="downloadResultPdf">${icon('download',18)} Descargar PDF corregido</button>` : ''}
 
       ${legendaryHtml}
@@ -1134,12 +1210,16 @@ function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked){
       <div class="bottom-actions">
         <button class="btn-secondary" data-action="backToMenu">${backLabel}</button>
         ${wrongItems.length ? `<button class="btn-secondary" data-action="reviewFailed">Repasar falladas</button>` : ''}
-        <button class="btn-primary" data-action="repeatTest">Repetir test</button>
+        ${isDuel ? '' : `<button class="btn-primary" data-action="repeatTest">Repetir test</button>`}
       </div>
     </div>
     <footer class="note">Aprobado orientativo: ${passScore}/${total} (50%). Contrasta siempre con el material oficial del ciclo.</footer>
   `;
   animateScoreCount(score);
+  if(rankUp || grandMasterEntry || (pass && (currentTest.mode === 'subject' || pct === 100 || isNewRecord))){
+    setTimeout(()=>burstConfetti(rankUp || grandMasterEntry ? 200 : 140), 250);
+    if(rankUp) vibrate([30,40,30,40,60]);
+  }
 }
 function animateScoreCount(target){
   const el = document.getElementById('scoreCount');
@@ -1158,6 +1238,15 @@ function animateScoreCount(target){
 
 /* ---------------- EVENTOS (delegación, sin onclick en el HTML) ---------------- */
 const ACTIONS = {
+  calMove,
+  createDuel,
+  joinDuelFromInput,
+  acceptPendingDuel,
+  playDuel,
+  shareDuel,
+  shareDuelWhatsApp,
+  copyDuelLink,
+  openDuels,
   installApp,
   dismissInstall,
   cloudSetRankName,
@@ -1217,6 +1306,7 @@ document.addEventListener('change', e=>{
   if(p && p.currentTest && (!p.currentTest.questions || p.currentTest.questions.some(q=>!q.subject))) clearProgress();
   document.getElementById('brandLogo').innerHTML = starOfLifeSVG(28);
   applyThemeIcon();
+  captureDuelFromUrl();
   renderHome();
   // Cuenta opcional en la nube: al traer datos, refresca la portada si el usuario está en ella
   Cloud.init(()=>{ if(document.querySelector('.home-tabs') && !document.getElementById('accountScreen')) renderHome(); });

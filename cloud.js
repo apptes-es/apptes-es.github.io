@@ -9,7 +9,7 @@ const DEVICE_MODE_KEY = 'tes_device_mode_v1'; // 'user' si alguna vez entró con
 const LOCAL_STAMP_KEY = 'tes_local_updated_v1';
 const SYNC_KEYS = [
   'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
-  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1'
+  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1', 'tes_stats_v1'
 ];
 const SCORE_QUEUE_KEY = 'tes_score_queue_v1'; // puntos pendientes de subir al ranking
 
@@ -82,6 +82,9 @@ const Cloud = (function(){
     // Preguntas dominadas: unión
     const mastered = new Set(parse(local['tes_mastered_ids_v1'], []).concat(parse(remote['tes_mastered_ids_v1'], [])));
     out['tes_mastered_ids_v1'] = JSON.stringify(Array.from(mastered));
+    // Racha, XP y medallas: se combinan los dos lados
+    const sl = parse(local['tes_stats_v1'], null), sr = parse(remote['tes_stats_v1'], null);
+    if(sl && sr && typeof mergeStats === 'function') out['tes_stats_v1'] = JSON.stringify(mergeStats(sl, sr));
     return out;
   }
   function isEmptySnapshot(s){
@@ -196,14 +199,16 @@ const Cloud = (function(){
       await flushScores();
       const [prof, rows] = await Promise.all([
         api('/rest/v1/profiles?select=display_name&id=eq.' + session.user.id),
-        api('/rest/v1/rpc/weekly_ranking', { method:'POST', body:{} })
+        api('/rest/v1/rpc/weekly_ranking_v2', { method:'POST', body:{} })
+          .catch(()=>api('/rest/v1/rpc/weekly_ranking', { method:'POST', body:{} }))
       ]);
       rankingProfile = (prof && prof[0]) || { display_name: displayName() };
       if(!box.isConnected) return;
       const me = rows.find(r=>r.is_me);
       const list = rows.length ? rows.map(r=>{
         const medal = (r.rank <= 3 && r.points > 0) ? `<span class="rank-medal m${r.rank}">${r.rank}</span>` : `<span class="rank-pos">${r.rank}</span>`;
-        return `<li class="${r.is_me ? 'me' : ''}">${medal}<span class="rank-name">${escapeHtml(r.display_name)}${r.is_me ? ' <em>(tú)</em>' : ''}</span>
+        const streak = r.streak > 0 ? ` <span class="rank-streak" title="Racha de ${r.streak} ${r.streak == 1 ? 'día' : 'días'}">${icon('flame',12)}${r.streak}</span>` : '';
+        return `<li class="${r.is_me ? 'me' : ''}">${medal}<span class="rank-name">${escapeHtml(r.display_name)}${r.is_me ? ' <em>(tú)</em>' : ''}${streak}</span>
           <span class="rank-tests">${r.tests} ${r.tests == 1 ? 'test' : 'tests'}</span><b class="rank-pts">${r.points}</b></li>`;
       }).join('') : '';
       box.innerHTML = `
@@ -218,7 +223,7 @@ const Cloud = (function(){
           </label>
         </div>
         ${list ? `<ol class="rank-list">${list}</ol>` : `<p class="empty-hint">Todavía no hay nadie en el ranking.</p>`}
-        <p class="rank-rules">1 punto por cada acierto · +10 por aprobar un simulacro de examen. Solo cuentan los tests hechos con la sesión iniciada.</p>`;
+        <p class="rank-rules">1 punto por cada acierto · +10 por aprobar un simulacro de examen. Solo cuentan los tests hechos con la sesión iniciada. ${icon('flame',12)} = días seguidos estudiando.</p>`;
     }catch(e){
       if(box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo cargar el ranking. ${escapeHtml(friendlyError(e))}</p>`;
     }
@@ -402,6 +407,12 @@ const Cloud = (function(){
     setRankName(name){ const n = String(name || '').trim().slice(0, 24); if(n) updateProfile({ display_name: n }); },
     view(v){ accountView = v; accountMsg = null; renderAccount(); },
     syncNow(){ pull(); },
+    async rpc(name, body){
+      if(!session) throw new Error('not_logged');
+      await ensureFreshToken();
+      if(!session) throw new Error('not_logged');
+      return api('/rest/v1/rpc/' + name, { method:'POST', body: body || {} });
+    },
     async logout(){ await logout(); accountView = 'login'; accountMsg = { type:'ok', text:'Sesión cerrada. Tu progreso sigue guardado en este dispositivo.' }; renderAccount(); updateBadge(); },
     isLogged(){ return !!session; }
   };

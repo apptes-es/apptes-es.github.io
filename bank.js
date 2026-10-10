@@ -31,7 +31,8 @@ const Bank = (function(){
     replaceInPlace(QUESTIONS, n.questions);
     return true;
   }
-  function signature(){ return QUESTIONS.length + '|' + QUESTIONS.map(q=>q.id + ':' + q.correct + ':' + (q.u?1:0) + ':' + q.text.length).join(',') + '|' + SUBJECTS.map(s=>s.id+s.name+(s.exam_date||'')).join(','); }
+  // Huella completa del banco: cualquier cambio (texto, opciones, tema, colores, fechas) refresca la app
+  function signature(){ try{ return JSON.stringify([SUBJECTS, QUESTIONS]); }catch(e){ return String(Date.now()); } }
 
   // Paso síncrono, antes de que arranque la app: usa la copia del dispositivo si existe
   function applyCached(){

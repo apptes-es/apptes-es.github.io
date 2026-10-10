@@ -971,11 +971,16 @@ function renderQuiz(){
   const subj = getSubject(q.subject);
   const userAnswer = currentTest.answers[currentIndex];
   const answered = userAnswer !== null;
+  // En los duelos no se enseña si aciertas hasta el final (si no, se podría repetir sabiendo las respuestas)
+  const isDuel = currentTest.mode === 'duel';
 
   const optionsHtml = q.options.map((opt,i)=>{
     let cls = 'option';
     let state = '';
-    if(answered){
+    if(answered && isDuel){
+      cls += ' disabled';
+      if(i===userAnswer){ cls += ' selected'; state = ', tu respuesta'; }
+    } else if(answered){
       cls += ' disabled';
       if(i===q.correct){ cls += ' correct'; state = ', correcta'; if(justAnswered) cls += ' just'; }
       else if(i===userAnswer){ cls += ' incorrect'; state = ', tu respuesta, incorrecta'; if(justAnswered) cls += ' just'; }
@@ -989,7 +994,9 @@ function renderQuiz(){
   }).join('');
 
   let feedbackHtml = '';
-  if(answered){
+  if(answered && isDuel){
+    feedbackHtml = `<div class="feedback show duel">${icon('check',15)} <span>Respuesta guardada. Verás los aciertos al terminar el duelo.</span></div>`;
+  } else if(answered){
     const correct = userAnswer === q.correct;
     if(!currentTest.phrases) currentTest.phrases = new Array(total).fill(null);
     if(!currentTest.phrases[currentIndex]) currentTest.phrases[currentIndex] = pickPhrase(correct, LETTERS[q.correct]);
@@ -1003,14 +1010,17 @@ function renderQuiz(){
       feedbackHtml += comboHtml(combo);
     }
   }
-  const mascotState = !answered ? 'neutral' : (userAnswer === q.correct ? 'happy' : 'sad');
+  const mascotState = (!answered || isDuel) ? 'neutral' : (userAnswer === q.correct ? 'happy' : 'sad');
 
   const dotsHtml = currentTest.questions.map((_,i)=>{
     let cls = 'dot';
     if(i===currentIndex) cls += ' current';
     const a = currentTest.answers[i];
     let stateLabel = 'sin responder';
-    if(a !== null){
+    if(a !== null && isDuel){
+      cls += ' answered-duel';
+      stateLabel = 'respondida';
+    } else if(a !== null){
       const isOk = a === currentTest.questions[i].correct;
       cls += isOk ? ' answered-ok' : ' answered-no';
       stateLabel = isOk ? 'respondida correctamente' : 'respondida incorrectamente';
@@ -1022,7 +1032,7 @@ function renderQuiz(){
   const answeredCount = currentTest.answers.filter(a=>a!==null).length;
   const timerHtml = currentTest.timed ? ` · <span class="timer" id="timerDisplay">${icon('clock',13)} --:--</span>` : '';
   const progressPct = total > 0 ? (answeredCount/total*100) : 0;
-  const liveCombo = currentCombo();
+  const liveCombo = isDuel ? 0 : currentCombo();
   const comboChip = liveCombo >= 3 ? ` <span class="combo-chip ${liveCombo>=10?'c10':liveCombo>=5?'c5':''}">${icon('flame',12)} x${liveCombo}</span>` : '';
   const entering = currentIndex !== lastQuizIndex;
   lastQuizIndex = currentIndex;
@@ -1066,7 +1076,8 @@ function selectAnswer(i){
   if(!currentTest.phrases) currentTest.phrases = new Array(currentTest.questions.length).fill(null);
   const q = currentTest.questions[currentIndex];
   currentTest.phrases[currentIndex] = pickPhrase(i === q.correct, LETTERS[q.correct]);
-  if(i === q.correct) vibrate(currentCombo() >= 5 ? [12,40,12] : 12);
+  if(currentTest.mode === 'duel') vibrate(12);
+  else if(i === q.correct) vibrate(currentCombo() >= 5 ? [12,40,12] : 12);
   else vibrate([70,50,70]);
   justAnswered = true;
   renderQuiz();
@@ -1238,7 +1249,7 @@ function animateScoreCount(target){
 
 /* ---------------- EVENTOS (delegación, sin onclick en el HTML) ---------------- */
 const ACTIONS = {
-  calMove,
+  calGoTo, calMove,
   createDuel,
   joinDuelFromInput,
   acceptPendingDuel,
@@ -1306,6 +1317,7 @@ document.addEventListener('change', e=>{
   if(p && p.currentTest && (!p.currentTest.questions || p.currentTest.questions.some(q=>!q.subject))) clearProgress();
   document.getElementById('brandLogo').innerHTML = starOfLifeSVG(28);
   applyThemeIcon();
+  Cloud.loadSession();
   captureDuelFromUrl();
   renderHome();
   // Cuenta opcional en la nube: al traer datos, refresca la portada si el usuario está en ella

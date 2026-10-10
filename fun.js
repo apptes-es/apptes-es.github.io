@@ -17,56 +17,99 @@ function pointsForEntry(h){
   const total = h.total || 0;
   return (h.score || 0) + ((h.mode === 'subject' && total && h.score >= passScoreFor(total)) ? 10 : 0);
 }
+// XP y días se guardan por dispositivo (dev) más una base heredada de versiones anteriores (base).
+// Así, al sincronizar dos móviles, se suman sus puntos en vez de quedarse con el mayor.
+const DEVICE_ID_KEY = 'tes_device_id_v1';   // no se sincroniza: identifica este dispositivo
+function deviceId(){
+  let id = Store.getRaw(DEVICE_ID_KEY);
+  if(!id){ id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); try{ localStorage.setItem(DEVICE_ID_KEY, id); }catch(e){} }
+  return id;
+}
+function cleanDays(days){
+  const out = {};
+  if(days && typeof days === 'object') Object.keys(days).forEach(k=>{ const d = days[k]; if(d && /^\d{4}-\d{2}-\d{2}$/.test(k)) out[k] = { t: Math.max(0, d.t|0), c: Math.max(0, d.c|0) }; });
+  return out;
+}
+function cleanPart(p){ p = (p && typeof p === 'object') ? p : {}; return { xp: Math.max(0, Number(p.xp) || 0), days: cleanDays(p.days) }; }
+function maxPart(a, b){
+  const days = Object.assign({}, a.days);
+  Object.keys(b.days).forEach(k=>{ const x = days[k], y = b.days[k]; days[k] = !x ? y : { t: Math.max(x.t, y.t), c: Math.max(x.c, y.c) }; });
+  return { xp: Math.max(a.xp, b.xp), days };
+}
+// Recalcula los totales (xp, days) sumando la base y todos los dispositivos
+function recomputeTotals(st){
+  const parts = [st.base].concat(Object.keys(st.dev).map(k=>st.dev[k]));
+  st.xp = 0; st.days = {};
+  parts.forEach(p=>{
+    st.xp += p.xp;
+    Object.keys(p.days).forEach(k=>{ const d = st.days[k] || (st.days[k] = {t:0, c:0}); d.t += p.days[k].t; d.c += p.days[k].c; });
+  });
+  return st;
+}
 function normalizeStats(st){
   st = (st && typeof st === 'object') ? st : {};
-  st.xp = Math.max(0, Number(st.xp) || 0);
-  st.days = (st.days && typeof st.days === 'object') ? st.days : {};
+  if(!st.base || !st.dev){            // formato antiguo: lo que había pasa a ser la base
+    st.base = cleanPart({ xp: st.xp, days: st.days });
+    st.dev = {};
+  } else {
+    st.base = cleanPart(st.base);
+    const dev = {};
+    Object.keys(st.dev || {}).forEach(k=>{ dev[k] = cleanPart(st.dev[k]); });
+    st.dev = dev;
+  }
   st.badges = Array.isArray(st.badges) ? st.badges : [];
   st.duelsWon = Array.isArray(st.duelsWon) ? st.duelsWon : [];
   st.bestStreak = Math.max(0, Number(st.bestStreak) || 0);
-  return st;
+  return recomputeTotals(st);
 }
 function backfillStats(){
   const st = normalizeStats({});
   loadHistory().forEach(h=>{
     if(!h || !h.date) return;
-    const d = st.days[dayKey(h.date)] || (st.days[dayKey(h.date)] = {t:0, c:0});
+    const d = st.base.days[dayKey(h.date)] || (st.base.days[dayKey(h.date)] = {t:0, c:0});
     d.t++; d.c += h.score || 0;
-    st.xp += pointsForEntry(h);
+    st.base.xp += pointsForEntry(h);
   });
+  recomputeTotals(st);
   st.bestStreak = streakInfo(st.days).best;
   return st;
 }
 function loadStats(){
   const raw = Store.get(STATS_KEY, null);
-  if(!raw){ const st = backfillStats(); Store.set(STATS_KEY, st); return st; }
+  if(!raw){
+    // Primera vez con esta versión: se calcula desde el historial y se guarda SIN marcar cambio,
+    // para que la primera sincronización no pise datos más nuevos de la nube.
+    const st = backfillStats();
+    Store.restore({ [STATS_KEY]: JSON.stringify(st) });
+    return st;
+  }
   return normalizeStats(raw);
 }
 function saveStats(st){ Store.set(STATS_KEY, st); }
 // Une las estadísticas de dos dispositivos sin perder nada
 function mergeStats(a, b){
   a = normalizeStats(a); b = normalizeStats(b);
-  const days = Object.assign({}, a.days);
-  Object.keys(b.days).forEach(k=>{
-    const x = days[k], y = b.days[k];
-    days[k] = !x ? y : { t: Math.max(x.t||0, y.t||0), c: Math.max(x.c||0, y.c||0) };
-  });
-  return {
-    xp: Math.max(a.xp, b.xp), days,
+  const dev = Object.assign({}, a.dev);
+  Object.keys(b.dev).forEach(k=>{ dev[k] = dev[k] ? maxPart(dev[k], b.dev[k]) : b.dev[k]; });
+  return recomputeTotals({
+    base: maxPart(a.base, b.base), dev,
     badges: Array.from(new Set(a.badges.concat(b.badges))),
     duelsWon: Array.from(new Set(a.duelsWon.concat(b.duelsWon))),
     bestStreak: Math.max(a.bestStreak, b.bestStreak)
-  };
+  });
 }
 // Se llama al terminar cada test
 function recordTestStats(entry){
   const st = loadStats();
   const before = { xp: st.xp, streak: streakInfo(st.days).current, studiedToday: !!(st.days[dayKey(Date.now())]) };
+  const id = deviceId();
+  const mine = st.dev[id] || (st.dev[id] = { xp: 0, days: {} });
   const k = dayKey(entry.date);
-  const d = st.days[k] || (st.days[k] = {t:0, c:0});
+  const d = mine.days[k] || (mine.days[k] = {t:0, c:0});
   d.t++; d.c += entry.score || 0;
   const gained = pointsForEntry(entry);
-  st.xp += gained;
+  mine.xp += gained;
+  recomputeTotals(st);
   const si = streakInfo(st.days);
   st.bestStreak = Math.max(st.bestStreak, si.best);
   saveStats(st);
@@ -140,14 +183,34 @@ function playerCardHtml(){
 
 /* ---------- CALENDARIO DE ESTUDIO ---------- */
 let calOffset = 0;
+// Exámenes por día: { 'YYYY-MM-DD': [asignatura, ...] }
+function examsByDay(){
+  const map = {};
+  SUBJECTS.forEach(s=>{ if(s.exam_date && parseDay(s.exam_date)) (map[s.exam_date] = map[s.exam_date] || []).push(s); });
+  return map;
+}
+// Hasta qué mes se puede avanzar: el del último examen pendiente (mínimo el actual)
+function calMaxOffset(){
+  const base = todayStart();
+  let max = 0;
+  Object.keys(examsByDay()).forEach(k=>{
+    const d = parseDay(k);
+    if(d >= base) max = Math.max(max, (d.getFullYear() - base.getFullYear()) * 12 + d.getMonth() - base.getMonth());
+  });
+  return max;
+}
 function calendarHtml(){
   const st = loadStats();
   const si = streakInfo(st.days);
   const base = todayStart();
+  const maxOff = calMaxOffset();
+  if(calOffset > maxOff) calOffset = maxOff;
   const first = new Date(base.getFullYear(), base.getMonth() + calOffset, 1);
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   const lead = (first.getDay() + 6) % 7; // lunes primero
   const todayK = dayKey(base);
+  const exams = examsByDay();
+  const monthExams = [];
   let cells = '', studied = 0, tests = 0;
   for(let i=0;i<lead;i++) cells += '<span class="cal-cell empty"></span>';
   for(let d=1; d<=daysInMonth; d++){
@@ -156,29 +219,55 @@ function calendarHtml(){
     const t = info ? info.t : 0;
     if(t){ studied++; tests += t; }
     const lvl = t >= 4 ? 3 : t >= 2 ? 2 : t >= 1 ? 1 : 0;
-    const label = `${d}: ${t ? t + (t===1?' test':' tests') + ', ' + (info.c||0) + ' aciertos' : 'sin estudiar'}`;
-    cells += `<span class="cal-cell l${lvl} ${k===todayK?'today':''}" title="${label}" aria-label="${label}">${d}</span>`;
+    const ex = exams[k] || [];
+    if(ex.length) monthExams.push({ k, ex });
+    let label = `${d}: ${t ? t + (t===1?' test':' tests') + ', ' + (info.c||0) + ' aciertos' : 'sin estudiar'}`;
+    if(ex.length) label += ' · Examen: ' + ex.map(s=>s.short || s.name).join(', ');
+    const past = k < todayK;
+    cells += `<span class="cal-cell l${lvl} ${k===todayK?'today':''} ${ex.length?'exam':''} ${ex.length&&past?'past':''}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"${ex.length?` style="--ec:${ex[0].color}"`:''}>${d}</span>`;
   }
   const monthName = first.toLocaleDateString('es-ES', { month:'long', year:'numeric' });
+  const examList = monthExams.length ? `<div class="cal-exams">` + monthExams.map(({k, ex})=>{
+      const days = daysUntil(k);
+      const when = days < 0 ? 'ya celebrado' : days === 0 ? '¡hoy!' : days === 1 ? 'mañana' : `en ${days} días`;
+      return ex.map(s=>`<div class="cal-exam" style="--ec:${s.color}">
+          <span class="ce-day">${parseDay(k).getDate()}</span>
+          <span class="ce-name">${escapeHtml(s.short || s.name)}</span>
+          <span class="ce-when ${days>=0&&days<=7?'soon':''}">${when}</span>
+        </div>`).join('');
+    }).join('') + `</div>` : (()=>{
+      // Mes sin exámenes: se avisa del siguiente y se puede saltar a él
+      const next = Object.keys(exams).filter(k=>k >= todayK).sort()[0];
+      if(!next) return '';
+      const nd = parseDay(next);
+      const off = (nd.getFullYear() - base.getFullYear()) * 12 + nd.getMonth() - base.getMonth();
+      if(off === calOffset) return '';
+      const names = exams[next].map(s=>s.short || s.name).join(', ');
+      return `<button type="button" class="cal-next-exam" data-action="calGoTo" data-args="${escapeHtml(JSON.stringify([off]))}">
+          ${icon('clock',14)} <span>Próximo examen: <b>${escapeHtml(formatDay(next))}</b> · ${escapeHtml(names)}</span>${icon('chevronRight',14)}
+        </button>`;
+    })();
   return `
     <div class="cal-card">
       <div class="cal-head">
         <button class="cal-nav" data-action="calMove" data-args='[-1]' aria-label="Mes anterior">${icon('chevronLeft',16)}</button>
         <b>${escapeHtml(monthName)}</b>
-        <button class="cal-nav" data-action="calMove" data-args='[1]' ${calOffset>=0?'disabled':''} aria-label="Mes siguiente">${icon('chevronRight',16)}</button>
+        <button class="cal-nav" data-action="calMove" data-args='[1]' ${calOffset>=maxOff?'disabled':''} aria-label="Mes siguiente">${icon('chevronRight',16)}</button>
       </div>
       <div class="cal-grid cal-dow"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
       <div class="cal-grid">${cells}</div>
+      ${examList}
       <div class="cal-stats">
         <div><b>${si.current}</b><span>racha actual</span></div>
         <div><b>${Math.max(si.best, st.bestStreak)}</b><span>mejor racha</span></div>
         <div><b>${studied}</b><span>días este mes</span></div>
         <div><b>${tests}</b><span>tests este mes</span></div>
       </div>
-      <div class="cal-legend"><span>Menos</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>Más</span></div>
+      <div class="cal-legend"><span>Menos</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>Más</span><span class="cl-exam"><i class="ex"></i>Examen</span></div>
     </div>`;
 }
-function calMove(delta){ calOffset = Math.min(0, calOffset + delta); renderHome(); }
+function calGoTo(off){ calOffset = Math.max(-24, Math.min(calMaxOffset(), off|0)); renderHome(); }
+function calMove(delta){ calOffset = Math.max(-24, Math.min(calMaxOffset(), calOffset + delta)); renderHome(); }
 function ranksListHtml(){
   const xp = loadStats().xp;
   const cur = rankFor(xp).idx;
@@ -244,11 +333,12 @@ const DUEL_ERRORS = {
   expired: 'Ese duelo ha caducado (duran 14 días).',
   too_many: 'Has creado muchos duelos hoy. Prueba mañana.',
   not_logged: 'Necesitas iniciar sesión para jugar duelos.',
-  bad_questions: 'No se pudo preparar el duelo.'
+  bad_questions: 'No se pudo preparar el duelo.',
+  not_participant: 'No participas en este duelo.'
 };
 function duelError(e){
-  const m = (e && e.message) || '';
-  const key = Object.keys(DUEL_ERRORS).find(k=>m.includes(k));
+  const m = String((e && e.message) || '').trim();
+  const key = Object.prototype.hasOwnProperty.call(DUEL_ERRORS, m) ? m : null;
   if(key) return DUEL_ERRORS[key];
   if(/fetch|network/i.test(m)) return 'Sin conexión. Revisa tu internet.';
   return 'No se pudo completar. Inténtalo de nuevo.';
@@ -263,6 +353,25 @@ function duelOutcome(s){
 function fmtMs(ms){ if(ms == null) return ''; const s = Math.round(ms/1000); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
 function duelSubjects(){ return SUBJECTS.filter(s=>questionsOf(s.id).filter(q=>!q.u).length >= DUEL_SIZE); }
 let duelMsg = null;
+// Atributo data-args seguro (JSON escapado para HTML)
+function argsAttr(arr){ return escapeHtml(JSON.stringify(arr)); }
+// Resultados de duelo pendientes de enviar: se guardan ANTES de enviarlos para no perderlos nunca
+const DUEL_SUBMIT_KEY = 'tes_duel_submit_v1';
+function pendingDuelSubmits(){ const q = Store.get(DUEL_SUBMIT_KEY, []); return Array.isArray(q) ? q : []; }
+function setPendingDuelSubmits(q){ if(q.length) Store.set(DUEL_SUBMIT_KEY, q); else Store.remove(DUEL_SUBMIT_KEY); }
+function queueDuelSubmit(item){ setPendingDuelSubmits(pendingDuelSubmits().filter(x=>x.id !== item.id).concat([item])); }
+function unqueueDuelSubmit(id){ setPendingDuelSubmits(pendingDuelSubmits().filter(x=>x.id !== id)); }
+async function flushDuelSubmits(){
+  for(const it of pendingDuelSubmits()){
+    try{ await Cloud.rpc('submit_duel', { p_id: it.id, p_score: it.score, p_ms: it.ms }); unqueueDuelSubmit(it.id); }
+    catch(e){ if(e && e.status >= 400 && e.status < 500 && e.status !== 401) unqueueDuelSubmit(it.id); }
+  }
+}
+// ¿Hay un duelo a medias guardado en este dispositivo?
+function savedDuelProgress(id){
+  const p = typeof loadProgress === 'function' ? loadProgress() : null;
+  return (p && p.currentTest && p.currentTest.mode === 'duel' && p.currentTest.duel && p.currentTest.duel.id === id) ? p : null;
+}
 
 function renderDuelsTab(box){
   if(!box) return;
@@ -290,7 +399,7 @@ function renderDuelsTab(box){
       <div class="section-label">Nuevo duelo</div>
       <p class="empty-hint">Juegas ${DUEL_SIZE} preguntas y luego mandas el enlace a tu rival. Gana quien acierte más; si empatáis, el más rápido.</p>
       <label class="duel-field">Asignatura
-        <select id="duelSubject">${subs.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select>
+        <select id="duelSubject">${subs.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select>
       </label>
       <button class="btn-primary" data-action="createDuel" ${subs.length?'':'disabled'}>${icon('award',18)} Crear duelo y jugar</button>
     </div>
@@ -310,6 +419,7 @@ async function loadDuelList(){
   const el = document.getElementById('duelList');
   if(!el) return;
   try{
+    await flushDuelSubmits();
     const list = await Cloud.rpc('my_duels', {});
     if(!el.isConnected) return;
     (list || []).forEach(noteDuelWin);
@@ -324,14 +434,17 @@ function duelRowHtml(s){
   const rival = s.has_opponent ? (s.their_name || 'Rival') : 'Sin rival todavía';
   const out = duelOutcome(s);
   let status, cls, action = '';
-  if(s.my_score == null){
-    status = s.expired ? 'Caducado' : '¡Te toca jugar!'; cls = 'turn';
-    if(!s.expired) action = `<button class="btn-mini" data-action="playDuel" data-args='["${s.id}"]'>Jugar</button>`;
+  const sending = s.my_score == null && pendingDuelSubmits().some(x=>x.id === s.id);
+  if(sending){
+    status = 'Enviando tu resultado…'; cls = 'wait';
+  } else if(s.my_score == null){
+    status = s.expired ? 'Caducado' : savedDuelProgress(s.id) ? 'A medias' : '¡Te toca jugar!'; cls = 'turn';
+    if(!s.expired) action = `<button class="btn-mini" data-action="playDuel" data-args="${argsAttr([s.id])}">${savedDuelProgress(s.id) ? 'Seguir' : 'Jugar'}</button>`;
   } else if(!s.has_opponent){
     status = 'Esperando rival'; cls = 'wait';
-    action = `<button class="btn-mini" data-action="shareDuel" data-args='["${s.id}", "${escapeHtml(subj.short)}"]'>Compartir</button>`;
+    action = `<button class="btn-mini" data-action="shareDuel" data-args="${argsAttr([s.id, subj.short])}">Compartir</button>`;
   } else if(s.their_score == null){
-    status = `Esperando a ${escapeHtml(rival)}`; cls = 'wait';
+    status = `Esperando a ${rival}`; cls = 'wait';
   } else {
     status = out === 'win' ? '¡Ganado!' : out === 'lose' ? 'Perdido' : 'Empate'; cls = out;
   }
@@ -355,8 +468,13 @@ function noteDuelWin(s){
   return true;
 }
 function startDuelTest(state){
-  const qs = (state.question_ids || []).map(findQuestionById).filter(Boolean).map(shuffleQuestionOptions);
-  if(!qs.length){ duelMsg = { type:'error', text:'Las preguntas de este duelo ya no están en el banco.' }; homeTab = 'duelos'; renderHome(); return; }
+  const ids = state.question_ids || [];
+  const qs = ids.map(findQuestionById).filter(Boolean).map(shuffleQuestionOptions);
+  if(!qs.length || qs.length !== ids.length){
+    duelMsg = { type:'error', text:'Faltan preguntas de este duelo en tu app. Cierra y vuelve a abrir la app para actualizar las preguntas e inténtalo otra vez.' };
+    if(typeof Bank !== 'undefined') Bank.refresh(onBankUpdated);
+    homeTab = 'duelos'; renderHome(); return;
+  }
   const test = makeTestShell('duel', state.subject, null, qs);
   test.duel = { id: state.id };
   test.startedAt = Date.now();
@@ -388,6 +506,8 @@ async function joinDuel(code){
 function joinDuelFromInput(){ const el = document.getElementById('duelCode'); joinDuel(el ? el.value : ''); }
 function acceptPendingDuel(){ joinDuel(Store.getRaw(PENDING_DUEL_KEY)); }
 async function playDuel(id){
+  // Si ya lo empezaste en este dispositivo, se sigue donde lo dejaste (mismo cronómetro)
+  if(savedDuelProgress(id)){ continueTest(); return; }
   try{ startDuelTest(await Cloud.rpc('duel_state', { p_id: id })); }
   catch(e){ duelMsg = { type:'error', text: duelError(e) }; homeTab = 'duelos'; renderHome(); }
 }
@@ -403,7 +523,9 @@ function shareDuelWhatsApp(code, subjShort){
 function copyDuelLink(code){
   const link = duelLink(code);
   const done = ()=>{ const b = document.getElementById('copyDuelBtn'); if(b) b.textContent = '¡Enlace copiado!'; };
-  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done).catch(()=>{});
+  const fallback = ()=>{ window.prompt('Copia el enlace del duelo:', link); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done).catch(fallback);
+  else fallback();
 }
 function openDuels(){ homeTab = 'duelos'; renderHome(); }
 // Tras terminar un duelo: envía la puntuación y muestra el marcador
@@ -411,8 +533,13 @@ async function submitAndShowDuel(test, score){
   const box = document.getElementById('duelResult');
   const ms = Math.max(0, (test.finishedAt || Date.now()) - (test.startedAt || Date.now()));
   let state = null;
-  try{ state = await Cloud.rpc('submit_duel', { p_id: test.duel.id, p_score: score, p_ms: ms }); }
-  catch(e){ if(box && box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo enviar el resultado del duelo. ${escapeHtml(duelError(e))}</p>`; return; }
+  queueDuelSubmit({ id: test.duel.id, score, ms });
+  try{ state = await Cloud.rpc('submit_duel', { p_id: test.duel.id, p_score: score, p_ms: ms }); unqueueDuelSubmit(test.duel.id); }
+  catch(e){
+    if(e && e.status >= 400 && e.status < 500 && e.status !== 401) unqueueDuelSubmit(test.duel.id);
+    if(box && box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo enviar el resultado del duelo ahora. ${escapeHtml(duelError(e))} Tu resultado está guardado y se enviará solo cuando vuelvas a Duelos.</p>`;
+    return;
+  }
   if(!box || !box.isConnected) return;
   const subj = getSubject(state.subject);
   const out = duelOutcome(state);
@@ -432,8 +559,8 @@ async function submitAndShowDuel(test, score){
       </div>
       ${!state.has_opponent ? `
         <p class="empty-hint">Manda este enlace a tu compañero. Código del duelo: <b class="duel-code">${escapeHtml(state.id)}</b></p>
-        <button class="btn-primary" data-action="shareDuelWhatsApp" data-args='["${state.id}", "${escapeHtml(subj.short)}"]'>${icon('chat',18)} Enviar por WhatsApp</button>
-        <button class="btn-secondary acc-full" id="copyDuelBtn" data-action="copyDuelLink" data-args='["${state.id}"]'>Copiar enlace</button>` : ''}
+        <button class="btn-primary" data-action="shareDuelWhatsApp" data-args="${argsAttr([state.id, subj.short])}">${icon('chat',18)} Enviar por WhatsApp</button>
+        <button class="btn-secondary acc-full" id="copyDuelBtn" data-action="copyDuelLink" data-args="${argsAttr([state.id])}">Copiar enlace</button>` : ''}
     </div>`;
   if(out === 'win' && noteDuelWin(state)){
     burstConfetti(160); vibrate([30,40,30]);

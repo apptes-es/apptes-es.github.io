@@ -403,14 +403,17 @@ const Cloud = (function(){
   }
 
   return {
+    // Carga la sesión guardada sin red (para pintar la portada ya sabiendo si hay cuenta)
+    loadSession(){ session = parse(Store.getRaw(SESSION_KEY), null); },
     init, renderAccount, renderRanking, recordScore,
     setRankName(name){ const n = String(name || '').trim().slice(0, 24); if(n) updateProfile({ display_name: n }); },
     view(v){ accountView = v; accountMsg = null; renderAccount(); },
     syncNow(){ pull(); },
     async rpc(name, body){
       if(!session) throw new Error('not_logged');
-      await ensureFreshToken();
+      const fresh = await ensureFreshToken();
       if(!session) throw new Error('not_logged');
+      if(!fresh) throw new Error('network');
       return api('/rest/v1/rpc/' + name, { method:'POST', body: body || {} });
     },
     async logout(){ await logout(); accountView = 'login'; accountMsg = { type:'ok', text:'Sesión cerrada. Tu progreso sigue guardado en este dispositivo.' }; renderAccount(); updateBadge(); },

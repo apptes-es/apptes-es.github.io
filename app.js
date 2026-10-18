@@ -200,20 +200,35 @@ function confettiHtml(count){
   return out + '</div>';
 }
 
-/* ---------------- TEMA (claro/oscuro) ---------------- */
+/* ---------------- TEMA (claro / oscuro / rosa) ---------------- */
+// El botón va rotando: claro → oscuro → rosa → claro
+const THEMES = ['light', 'dark', 'pink'];
+const THEME_COLORS = { light:'#10233D', dark:'#10233D', pink:'#D9488F' };
+const THEME_NEXT_LABEL = { light:'Modo oscuro', dark:'Modo rosa', pink:'Modo claro' };
 function currentTheme(){
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const t = document.documentElement.getAttribute('data-theme');
+  return t === 'dark' || t === 'pink' ? t : 'light';
 }
 function applyThemeIcon(){
+  const t = currentTheme();
   const el = document.getElementById('themeIcon');
-  if(el) el.innerHTML = icon(currentTheme() === 'dark' ? 'sun' : 'moon', 18);
+  if(el) el.innerHTML = icon(t === 'light' ? 'moon' : t === 'dark' ? 'heart' : 'sun', 18);
+  const btn = document.getElementById('themeToggle');
+  if(btn){ btn.title = THEME_NEXT_LABEL[t]; btn.setAttribute('aria-label', 'Cambiar a ' + THEME_NEXT_LABEL[t].toLowerCase()); }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', THEME_COLORS[t]);
+}
+function setTheme(t){
+  if(t === 'light') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  Store.setRaw(THEME_KEY, t);
+  applyThemeIcon();
 }
 function toggleTheme(){
-  const next = currentTheme() === 'dark' ? 'light' : 'dark';
-  if(next === 'dark') document.documentElement.setAttribute('data-theme','dark');
-  else document.documentElement.removeAttribute('data-theme');
-  Store.setRaw(THEME_KEY, next);
-  applyThemeIcon();
+  const t = currentTheme();
+  const next = THEMES[(THEMES.indexOf(t) + 1) % THEMES.length];
+  setTheme(next);
+  if(next === 'pink' && typeof burstConfetti === 'function') burstConfetti(70);
 }
 
 /* ---------------- UTIL ---------------- */

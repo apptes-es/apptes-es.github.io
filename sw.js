@@ -1,6 +1,6 @@
 /* Service worker de TES Test: la app funciona sin conexión.
    Estrategia: primero la red (para recibir siempre lo último) y, si no hay, la copia guardada. */
-const CACHE = 'tes-test-v4';
+const CACHE = 'tes-test-v5';
 const SHELL = ['./', 'index.html', 'styles.css', 'data.js', 'store.js', 'pdf.js', 'cloud.js', 'bank.js', 'fun.js', 'app.js',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 

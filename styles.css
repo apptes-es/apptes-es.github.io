@@ -1014,3 +1014,104 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .dot.answered-duel{background:var(--primary); color:#fff; border-color:var(--primary);}
 .cal-next-exam{display:flex; align-items:center; gap:8px; width:100%; margin-top:12px; padding:9px 10px; border:none; border-radius:10px; background:var(--bg); color:var(--text); font:inherit; font-size:13px; text-align:left; cursor:pointer; border-left:4px solid var(--siren);}
 .cal-next-exam span{flex:1; min-width:0;}
+
+/* =====================================================================
+   MODO ROSA (cuqui) — se activa con data-theme="pink"
+   ===================================================================== */
+[data-theme="pink"]{
+  --font-head:'Fredoka','Barlow Condensed',sans-serif;
+  --navy:#D9488F;
+  --navy-2:#F07AB4;
+  --primary:#E35D9E;
+  --primary-light:#FFD6EA;
+  --hivis:#FFE3F1;
+  --hivis-press:#F7B6D6;
+  --hivis-green:#C9A7F5;
+  --siren:#FF5C9D;
+  --bg:#FFF2F8;
+  --card-bg:#FFFFFF;
+  --text:#4A1F3A;
+  --text-muted:#9A6584;
+  --border:#F8D3E6;
+  --accent-text:#C42F7A;
+  --ok:#2FA36B;
+  --ok-bg:#E3F7EC;
+  --ok-text:#16613C;
+  --danger:#E0457B;
+  --danger-bg:#FFE3EC;
+  --danger-text:#9E1F4D;
+  --banner-bg:#FFF0F7;
+  --badge-bg:#FFE0F0;
+  --badge-text:#A02868;
+  --tap-bg:#FDE4F0;
+  --select-bg:#FDE3F1;
+  color-scheme:light;
+}
+/* Fondo con lunares suaves */
+[data-theme="pink"] body{
+  background-color:var(--bg);
+  background-image:radial-gradient(circle, #FFD9EB 1.6px, transparent 2px);
+  background-size:22px 22px;
+}
+/* Títulos: redondeados, sin mayúsculas forzadas */
+[data-theme="pink"] .hero h2,
+[data-theme="pink"] .topbar h1,
+[data-theme="pink"] .cal-head b,
+[data-theme="pink"] .section-label{text-transform:none; letter-spacing:0;}
+[data-theme="pink"] .hero h2{font-size:31px; line-height:1.08;}
+[data-theme="pink"] .topbar h1 span{color:#FFF;}
+[data-theme="pink"] .topbar h1::after{content:" ♡"; font-size:16px; vertical-align:2px;}
+/* Franja de corazoncitos en lugar de la reflectante de ambulancia */
+[data-theme="pink"] .topbar::after{
+  height:8px;
+  background:repeating-linear-gradient(90deg, #FFE3F1 0 14px, #C9A7F5 14px 28px, #FFB3D9 28px 42px);
+}
+[data-theme="pink"] .progress-fill,
+[data-theme="pink"] .pc-bar div{
+  background:repeating-linear-gradient(90deg, #FF8CC3 0 10px, #C9A7F5 10px 20px);
+}
+/* Tarjetas más redondas y con sombra rosada */
+[data-theme="pink"] .subject-card,
+[data-theme="pink"] .q-card,
+[data-theme="pink"] .option,
+[data-theme="pink"] .player-card,
+[data-theme="pink"] .cal-card,
+[data-theme="pink"] .stats-item,
+[data-theme="pink"] .duel-row{border-radius:22px; box-shadow:0 4px 14px rgba(217,72,143,.10);}
+[data-theme="pink"] .option .letter{border-radius:50%;}
+[data-theme="pink"] .home-tabs{border-radius:999px;}
+[data-theme="pink"] .home-tab{border-radius:999px;}
+[data-theme="pink"] .btn-primary,
+[data-theme="pink"] .btn-secondary,
+[data-theme="pink"] .btn-mini{border-radius:999px;}
+/* Botón principal: rosa intenso con texto blanco */
+[data-theme="pink"] .btn-primary{background:linear-gradient(135deg,#FF7AB8,#E35D9E); color:#fff; box-shadow:0 3px 0 #C23F80;}
+[data-theme="pink"] .btn-primary:active{box-shadow:0 1px 0 #C23F80;}
+/* Cabecera de inicio con brillitos */
+[data-theme="pink"] .hero{border-radius:26px; background:linear-gradient(150deg,#F27DB6 0%,#E35D9E 55%,#B98AF0 130%);}
+[data-theme="pink"] .hero::before{
+  content:"✿  ♡  ✧  ♡  ✿";
+  position:absolute; right:14px; bottom:10px;
+  font-size:15px; letter-spacing:4px; color:rgba(255,255,255,.55);
+  pointer-events:none;
+}
+[data-theme="pink"] .hero p{color:#FFE8F3;}
+[data-theme="pink"] .hero h2 em,
+[data-theme="pink"] .stat b{color:#FFF;}
+[data-theme="pink"] .hero-ecg{opacity:.18;}
+[data-theme="pink"] .section-label::before{background:#FF7AB8; border-radius:50%; width:8px; height:8px;}
+[data-theme="pink"] .section-label::after{content:" ♡"; color:#FF7AB8;}
+/* Calendario en tonos rosas */
+[data-theme="pink"] .cal-cell.l1, [data-theme="pink"] .cal-legend i.l1{background:#FFE0EF; color:#A02868;}
+[data-theme="pink"] .cal-cell.l2, [data-theme="pink"] .cal-legend i.l2{background:#FF9EC9; color:#fff;}
+[data-theme="pink"] .cal-cell.l3, [data-theme="pink"] .cal-legend i.l3{background:#D9488F; color:#fff;}
+[data-theme="pink"] .cal-cell{border-radius:50%;}
+[data-theme="pink"] .combo-chip{background:#FF7AB8; color:#fff;}
+[data-theme="pink"] .xp-gain{color:#E35D9E;}
+[data-theme="pink"] .rank-head{border-radius:22px;}
+[data-theme="pink"] .mode-toggle input{accent-color:#E35D9E;}
+/* Sin mayúsculas gritonas en modo rosa */
+[data-theme="pink"] *{text-transform:none !important;}
+[data-theme="pink"] .home-tab,
+[data-theme="pink"] .btn-primary,
+[data-theme="pink"] .pc-top b{letter-spacing:0;}

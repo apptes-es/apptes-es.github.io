@@ -290,7 +290,9 @@ function burstConfetti(count){
   if(!ctx){ c.remove(); return; }
   const dpr = window.devicePixelRatio || 1, W = window.innerWidth, H = window.innerHeight;
   c.width = W * dpr; c.height = H * dpr; ctx.scale(dpr, dpr);
-  const colors = ['#F5C518','#2FA35B','#2F8CFF','#E0312B','#FFFFFF','#FF8A3D'];
+  const colors = (document.documentElement.getAttribute('data-theme') === 'pink')
+    ? ['#FF6FB5','#FFB3D9','#C9A7F5','#FFFFFF','#FF9EC7','#F7C6FF']
+    : ['#F5C518','#2FA35B','#2F8CFF','#E0312B','#FFFFFF','#FF8A3D'];
   const parts = [];
   count = count || 140;
   for(let i=0;i<count;i++){

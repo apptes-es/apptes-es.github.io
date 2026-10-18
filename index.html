@@ -7,13 +7,14 @@
 <title>TES Test · Técnico en Emergencias Sanitarias</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
 <script>
 (function(){
   try{
     var t = localStorage.getItem('tes_theme_v1');
     if(!t){ t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
-    if(t === 'dark'){ document.documentElement.setAttribute('data-theme','dark'); }
+    if(t === 'dark' || t === 'pink'){ document.documentElement.setAttribute('data-theme', t); }
+    if(t === 'pink'){ var m = document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute('content', '#D9488F'); }
   }catch(e){}
 })();
 </script>

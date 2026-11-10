@@ -9,7 +9,8 @@ const DEVICE_MODE_KEY = 'tes_device_mode_v1'; // 'user' si alguna vez entró con
 const LOCAL_STAMP_KEY = 'tes_local_updated_v1';
 const SYNC_KEYS = [
   'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
-  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1', 'tes_stats_v1'
+  'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1', 'tes_stats_v1',
+  'tes_qstreak_v1', 'tes_fav_v1'
 ];
 const SCORE_QUEUE_KEY = 'tes_score_queue_v1'; // puntos pendientes de subir al ranking
 
@@ -70,7 +71,10 @@ const Cloud = (function(){
   function parse(raw, fb){ try{ const v = JSON.parse(raw); return v == null ? fb : v; }catch(e){ return fb; } }
   // Une local y nube sin perder nada importante
   function merge(local, remote, localNewer){
-    const out = Object.assign({}, localNewer ? remote : local, localNewer ? local : remote);
+    const newer = localNewer ? local : remote, older = localNewer ? remote : local;
+    const out = Object.assign({}, older, newer);
+    // Test a medias: manda el lado más reciente. Si allí ya se terminó o descartó, no se resucita.
+    if(newer['tes_test_progress_v1'] === undefined) delete out['tes_test_progress_v1'];
     // Historial: unión de los dos, sin duplicados, el más reciente primero
     const hist = parse(local['tes_test_history_v1'], []).concat(parse(remote['tes_test_history_v1'], []));
     const seen = new Set(); const histMerged = [];
@@ -79,9 +83,10 @@ const Cloud = (function(){
       if(!seen.has(k)){ seen.add(k); histMerged.push(h); }
     });
     out['tes_test_history_v1'] = JSON.stringify(histMerged.slice(0,80));
-    // Preguntas dominadas: unión
+    // Preguntas dominadas: unión de los dos, menos las que están falladas ahora (al fallar se deja de dominar)
+    const failedNow = new Set(parse(out['tes_failed_ids_v1'], []));
     const mastered = new Set(parse(local['tes_mastered_ids_v1'], []).concat(parse(remote['tes_mastered_ids_v1'], [])));
-    out['tes_mastered_ids_v1'] = JSON.stringify(Array.from(mastered));
+    out['tes_mastered_ids_v1'] = JSON.stringify(Array.from(mastered).filter(id=>!failedNow.has(id)));
     // Racha, XP y medallas: se combinan los dos lados
     const sl = parse(local['tes_stats_v1'], null), sr = parse(remote['tes_stats_v1'], null);
     if(sl && sr && typeof mergeStats === 'function') out['tes_stats_v1'] = JSON.stringify(mergeStats(sl, sr));
@@ -110,7 +115,9 @@ const Cloud = (function(){
       SYNC_KEYS.forEach(k=>{ if(final[k] === undefined) Store.remove(k); });
       Store.restore(final);
       applyingRemote = false;
-      await push(true);
+      // Solo se sube si lo de este dispositivo aporta algo que la nube no tenía
+      const same = SYNC_KEYS.every(k=>final[k] === remote[k]);
+      if(same) setStatus('ok'); else await push(true);
       flushScores();
       if(typeof onRemoteApplied === 'function') onRemoteApplied();
     }catch(e){
@@ -223,7 +230,7 @@ const Cloud = (function(){
           </label>
         </div>
         ${list ? `<ol class="rank-list">${list}</ol>` : `<p class="empty-hint">Todavía no hay nadie en el ranking.</p>`}
-        <p class="rank-rules">1 punto por cada acierto · +10 por aprobar un simulacro de examen. Solo cuentan los tests hechos con la sesión iniciada. ${icon('flame',12)} = días seguidos estudiando.</p>`;
+        <p class="rank-rules">1 punto por cada acierto (las preguntas que ya dominas valen la mitad) · +10 por aprobar un simulacro de 20 preguntas o más. Solo cuentan los tests hechos con la sesión iniciada. ${icon('flame',12)} = días seguidos estudiando.</p>`;
     }catch(e){
       if(box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo cargar el ranking. ${escapeHtml(friendlyError(e))}</p>`;
     }
@@ -261,6 +268,49 @@ const Cloud = (function(){
     // Sin confirmación por email, si no llega sesión es que ese email ya estaba registrado
     return 'exists';
   }
+  // Recuperar contraseña: Supabase envía un email con un enlace que vuelve a la app
+  function recover(email){
+    const back = location.origin + location.pathname;
+    return api('/auth/v1/recover?redirect_to=' + encodeURIComponent(back), { method:'POST', auth:false, body:{ email } });
+  }
+  async function setNewPassword(password){
+    if(!(await ensureFreshToken())) throw new Error('Sesión caducada. Pide otro enlace.');
+    await api('/auth/v1/user', { method:'PUT', body:{ password } });
+  }
+  // Al volver del enlace del email, la dirección trae #access_token=...&type=recovery
+  async function captureRecoveryFromUrl(){
+    if(!location.hash || location.hash.length < 2) return false;
+    let p;
+    try{ p = new URLSearchParams(location.hash.slice(1)); }catch(e){ return false; }
+    const clean = ()=>{ try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){} };
+    if(p.get('error_description')){
+      clean();
+      accountView = 'recover';
+      accountMsg = { type:'error', text:'El enlace no es válido o ha caducado. Pide uno nuevo.' };
+      renderAccount();
+      return true;
+    }
+    if(p.get('type') !== 'recovery' || !p.get('access_token')) return false;
+    clean();
+    try{
+      const token = p.get('access_token');
+      const user = await api('/auth/v1/user', { auth:false, headers:{ Authorization: 'Bearer ' + token } });
+      saveSession({ access_token: token, refresh_token: p.get('refresh_token'),
+        expires_at: Number(p.get('expires_at')) || (Math.floor(Date.now()/1000) + (Number(p.get('expires_in')) || 3600)), user });
+      accountView = 'newpass'; accountMsg = null;
+    }catch(e){
+      accountView = 'recover';
+      accountMsg = { type:'error', text:'El enlace no es válido o ha caducado. Pide uno nuevo.' };
+    }
+    updateBadge(); renderAccount();
+    return true;
+  }
+  // Aviso de pregunta con error: lo puede mandar cualquiera, con o sin cuenta
+  async function report(questionId, note){
+    if(session) await ensureFreshToken();
+    return api('/rest/v1/question_reports', { method:'POST', headers:{ Prefer:'return=minimal' },
+      body:{ question_id: String(questionId).slice(0, 40), note: note ? String(note).slice(0, 500) : null } });
+  }
   async function logout(){
     if(pushTimer) await push(true);
     try{ await api('/auth/v1/logout', { method:'POST' }); }catch(e){}
@@ -296,7 +346,16 @@ const Cloud = (function(){
     if(typeof clearTimer === 'function') clearTimer();
     document.getElementById('topbarSub').textContent = 'Mi cuenta';
     let inner;
-    if(session){
+    if(session && accountView === 'newpass'){
+      inner = `
+        <div class="section-label">Nueva contraseña</div>
+        <p class="empty-hint">Escribe la contraseña nueva para ${escapeHtml(session.user.email || 'tu cuenta')}.</p>
+        ${msgHtml()}
+        <form data-form="newpass" class="acc-form">
+          <label>Contraseña nueva<input name="password" type="password" minlength="6" autocomplete="new-password" required></label>
+          <button class="btn-primary" type="submit">Guardar contraseña</button>
+        </form>`;
+    } else if(session){
       inner = `
         <div class="acc-card">
           <div class="acc-avatar">${icon('user', 26)}</div>
@@ -319,6 +378,17 @@ const Cloud = (function(){
           <button class="btn-primary" type="submit">Crear cuenta</button>
         </form>
         <button class="acc-link" data-action="cloudView" data-args='["login"]'>Ya tengo cuenta · Iniciar sesión</button>`;
+    } else if(accountView === 'recover'){
+      inner = `
+        <div class="section-label">Recuperar contraseña</div>
+        <p class="empty-hint">Escribe el email de tu cuenta y te mandamos un enlace para poner una contraseña nueva.</p>
+        ${msgHtml()}
+        <form data-form="recover" class="acc-form">
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <button class="btn-primary" type="submit">Enviar enlace</button>
+        </form>
+        <p class="empty-hint acc-forgot">Si no te llega en unos minutos (mira también en spam), pide al administrador de la app que te la restablezca.</p>
+        <button class="acc-link" data-action="cloudView" data-args='["login"]'>Volver a iniciar sesión</button>`;
     } else {
       inner = `
         <div class="section-label">Iniciar sesión</div>
@@ -329,7 +399,7 @@ const Cloud = (function(){
           <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
           <button class="btn-primary" type="submit">Entrar</button>
         </form>
-        <p class="empty-hint acc-forgot">¿Has olvidado la contraseña? Pide al administrador de la app que te la restablezca.</p>
+        <button class="acc-link" data-action="cloudView" data-args='["recover"]'>¿Has olvidado la contraseña?</button>
         <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>
         <button class="acc-link welcome-guest" data-action="renderHome" data-guest="1">Continuar como invitado</button>`;
     }
@@ -353,6 +423,16 @@ const Cloud = (function(){
       const r = await signup(f.email.value.trim(), f.password.value, f.name.value.trim());
       if(r === 'exists'){ accountView = 'login'; accountMsg = { type:'error', text:'Ese email ya tiene cuenta. Inicia sesión con tu contraseña.' }; }
       else accountMsg = { type:'ok', text:'¡Cuenta creada! Tu progreso ya se guarda en la nube.' };
+    },
+    async recover(f){
+      await recover(f.email.value.trim());
+      accountMsg = { type:'ok', text:'Si ese email tiene cuenta, te hemos mandado un enlace. Ábrelo desde este mismo dispositivo.' };
+    },
+    async newpass(f){
+      await setNewPassword(f.password.value);
+      accountView = 'login';
+      accountMsg = { type:'ok', text:'Contraseña cambiada. Ya estás dentro.' };
+      pull();
     }
   };
   document.addEventListener('submit', async e=>{
@@ -373,6 +453,7 @@ const Cloud = (function(){
     onRemoteApplied = onApplied;
     session = parse(Store.getRaw(SESSION_KEY), null);
     updateBadge();
+    if(await captureRecoveryFromUrl()) return;
     if(session){ pull(); return; }
     // Sin sesión: el dispositivo recuerda si ya tuvo cuenta, si entró como invitado o si es nuevo
     const mode = Store.getRaw(DEVICE_MODE_KEY);
@@ -405,7 +486,7 @@ const Cloud = (function(){
   return {
     // Carga la sesión guardada sin red (para pintar la portada ya sabiendo si hay cuenta)
     loadSession(){ session = parse(Store.getRaw(SESSION_KEY), null); },
-    init, renderAccount, renderRanking, recordScore,
+    init, renderAccount, renderRanking, recordScore, report,
     setRankName(name){ const n = String(name || '').trim().slice(0, 24); if(n) updateProfile({ display_name: n }); },
     view(v){ accountView = v; accountMsg = null; renderAccount(); },
     syncNow(){ pull(); },

@@ -30,19 +30,38 @@ function cleanDays(days){
   if(days && typeof days === 'object') Object.keys(days).forEach(k=>{ const d = days[k]; if(d && /^\d{4}-\d{2}-\d{2}$/.test(k)) out[k] = { t: Math.max(0, d.t|0), c: Math.max(0, d.c|0) }; });
   return out;
 }
-function cleanPart(p){ p = (p && typeof p === 'object') ? p : {}; return { xp: Math.max(0, Number(p.xp) || 0), days: cleanDays(p.days) }; }
+// Aciertos acumulados por asignatura ('s:id') y por tema ('t:id::tema'): { clave: {c: aciertos, t: total} }
+function cleanAgg(agg){
+  const out = {};
+  if(agg && typeof agg === 'object') Object.keys(agg).forEach(k=>{ const a = agg[k]; if(a && typeof a === 'object') out[k] = { c: Math.max(0, a.c|0), t: Math.max(0, a.t|0) }; });
+  return out;
+}
+function maxAgg(a, b){
+  const out = Object.assign({}, a);
+  Object.keys(b).forEach(k=>{ const x = out[k], y = b[k]; out[k] = !x ? y : { c: Math.max(x.c, y.c), t: Math.max(x.t, y.t) }; });
+  return out;
+}
+function addBreakdown(agg, prefix, breakdown){
+  Object.keys(breakdown || {}).forEach(k=>{
+    const b = breakdown[k]; if(!b) return;
+    const a = agg[prefix + k] || (agg[prefix + k] = { c:0, t:0 });
+    a.c += b.correct|0; a.t += b.total|0;
+  });
+}
+function cleanPart(p){ p = (p && typeof p === 'object') ? p : {}; return { xp: Math.max(0, Number(p.xp) || 0), days: cleanDays(p.days), agg: cleanAgg(p.agg) }; }
 function maxPart(a, b){
   const days = Object.assign({}, a.days);
   Object.keys(b.days).forEach(k=>{ const x = days[k], y = b.days[k]; days[k] = !x ? y : { t: Math.max(x.t, y.t), c: Math.max(x.c, y.c) }; });
-  return { xp: Math.max(a.xp, b.xp), days };
+  return { xp: Math.max(a.xp, b.xp), days, agg: maxAgg(a.agg, b.agg) };
 }
 // Recalcula los totales (xp, days) sumando la base y todos los dispositivos
 function recomputeTotals(st){
   const parts = [st.base].concat(Object.keys(st.dev).map(k=>st.dev[k]));
-  st.xp = 0; st.days = {};
+  st.xp = 0; st.days = {}; st.agg = {};
   parts.forEach(p=>{
     st.xp += p.xp;
     Object.keys(p.days).forEach(k=>{ const d = st.days[k] || (st.days[k] = {t:0, c:0}); d.t += p.days[k].t; d.c += p.days[k].c; });
+    Object.keys(p.agg).forEach(k=>{ const a = st.agg[k] || (st.agg[k] = {c:0, t:0}); a.c += p.agg[k].c; a.t += p.agg[k].t; });
   });
   return st;
 }
@@ -60,6 +79,15 @@ function normalizeStats(st){
   st.badges = Array.isArray(st.badges) ? st.badges : [];
   st.duelsWon = Array.isArray(st.duelsWon) ? st.duelsWon : [];
   st.bestStreak = Math.max(0, Number(st.bestStreak) || 0);
+  // El rendimiento por asignatura y tema antes se calculaba con los últimos 80 tests;
+  // la primera vez se copia de ese historial a la base y a partir de ahí se acumula para siempre.
+  if(!st.aggInit){
+    const fromHistory = {};
+    loadHistory().forEach(h=>{ if(h){ addBreakdown(fromHistory, 's:', h.subjBreakdown); addBreakdown(fromHistory, 't:', h.temaBreakdown); } });
+    st.base.agg = maxAgg(st.base.agg, fromHistory);
+    st.aggInit = true;
+    st.migrated = true;   // aviso para loadStats: hay que guardarlo
+  }
   return recomputeTotals(st);
 }
 function backfillStats(){
@@ -72,6 +100,7 @@ function backfillStats(){
   });
   recomputeTotals(st);
   st.bestStreak = streakInfo(st.days).best;
+  delete st.migrated;
   return st;
 }
 function loadStats(){
@@ -83,15 +112,18 @@ function loadStats(){
     Store.restore({ [STATS_KEY]: JSON.stringify(st) });
     return st;
   }
-  return normalizeStats(raw);
+  const st = normalizeStats(raw);
+  if(st.migrated){ delete st.migrated; Store.restore({ [STATS_KEY]: JSON.stringify(st) }); }
+  return st;
 }
-function saveStats(st){ Store.set(STATS_KEY, st); }
+function saveStats(st){ delete st.migrated; Store.set(STATS_KEY, st); }
 // Une las estadísticas de dos dispositivos sin perder nada
 function mergeStats(a, b){
   a = normalizeStats(a); b = normalizeStats(b);
   const dev = Object.assign({}, a.dev);
   Object.keys(b.dev).forEach(k=>{ dev[k] = dev[k] ? maxPart(dev[k], b.dev[k]) : b.dev[k]; });
   return recomputeTotals({
+    aggInit: true,
     base: maxPart(a.base, b.base), dev,
     badges: Array.from(new Set(a.badges.concat(b.badges))),
     duelsWon: Array.from(new Set(a.duelsWon.concat(b.duelsWon))),
@@ -103,10 +135,12 @@ function recordTestStats(entry){
   const st = loadStats();
   const before = { xp: st.xp, streak: streakInfo(st.days).current, studiedToday: !!(st.days[dayKey(Date.now())]) };
   const id = deviceId();
-  const mine = st.dev[id] || (st.dev[id] = { xp: 0, days: {} });
+  const mine = st.dev[id] || (st.dev[id] = { xp: 0, days: {}, agg: {} });
   const k = dayKey(entry.date);
   const d = mine.days[k] || (mine.days[k] = {t:0, c:0});
   d.t++; d.c += entry.score || 0;
+  addBreakdown(mine.agg, 's:', entry.subjBreakdown);
+  addBreakdown(mine.agg, 't:', entry.temaBreakdown);
   const gained = pointsForEntry(entry);
   mine.xp += gained;
   recomputeTotals(st);
@@ -319,6 +353,13 @@ function burstConfetti(count){
   }
   requestAnimationFrame(frame);
 }
+function toast(text){
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const t = document.createElement('div');
+  t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2800);
+}
 function comboHtml(combo){
   if(combo < 3) return '';
   let cls = 'c3', txt = `¡${combo} seguidas! Ritmo constante`, ic = 'pulse';
@@ -513,14 +554,15 @@ async function playDuel(id){
   try{ startDuelTest(await Cloud.rpc('duel_state', { p_id: id })); }
   catch(e){ duelMsg = { type:'error', text: duelError(e) }; homeTab = 'duelos'; renderHome(); }
 }
-function shareDuel(code, subjShort){
-  const text = `🚑 Te reto a un duelo en TES Test${subjShort ? ' (' + subjShort + ')' : ''}. ¿A que no me ganas? Código ${code}: ${duelLink(code)}`;
-  if(navigator.share){ navigator.share({ title:'Duelo TES Test', text }).catch(()=>{}); return; }
-  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+function duelShareText(code, subjShort){
+  return `🚑 Te reto a un duelo en TES Test${subjShort ? ' (' + subjShort + ')' : ''}. ¿A que no me ganas? Código ${code}: ${duelLink(code)}`;
 }
 function shareDuelWhatsApp(code, subjShort){
-  const text = `🚑 Te reto a un duelo en TES Test${subjShort ? ' (' + subjShort + ')' : ''}. ¿A que no me ganas? Código ${code}: ${duelLink(code)}`;
-  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+  window.open('https://wa.me/?text=' + encodeURIComponent(duelShareText(code, subjShort)), '_blank', 'noopener');
+}
+function shareDuel(code, subjShort){
+  if(navigator.share){ navigator.share({ title:'Duelo TES Test', text: duelShareText(code, subjShort) }).catch(()=>{}); return; }
+  shareDuelWhatsApp(code, subjShort);
 }
 function copyDuelLink(code){
   const link = duelLink(code);

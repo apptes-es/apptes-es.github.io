@@ -15,6 +15,18 @@ const PROGRESS_KEY = 'tes_test_progress_v1';
 const THEME_KEY = 'tes_theme_v1';
 const FAILED_KEY = 'tes_failed_ids_v1';
 const MASTERY_KEY = 'tes_mastered_ids_v1';
+const STREAK_KEY = 'tes_qstreak_v1';   // preguntas acertadas una vez (a un acierto de quedar dominadas)
+const FAV_KEY = 'tes_fav_v1';          // preguntas marcadas como favoritas
+const RECORD_MIN = 10;                 // el récord personal solo cuenta tests de al menos 10 preguntas
+const BONUS_MIN = 20;                  // el +10 del ranking exige un simulacro de al menos 20 preguntas
+// Opciones del test que se eligen en la pantalla de la asignatura (se recuerdan mientras la app está abierta)
+const testPrefs = { timed:false, blind:false, size:40 };
+function setTestPref(name, value){
+  if(name === 'size') testPrefs.size = Math.max(5, Math.min(TEST_SIZE, parseInt(value, 10) || TEST_SIZE));
+  else if(name === 'timed' || name === 'blind') testPrefs[name] = !!value;
+  const hint = document.getElementById('simHint');
+  if(hint && currentSubjectId) hint.textContent = simHintText(questionsOf(currentSubjectId).length);
+}
 // Tamaño de los simulacros de cada asignatura: entre 30 y 50.
 // Si el banco aún no tiene tantas preguntas, el test usa todas las disponibles.
 const TEST_SIZE = 40;
@@ -179,7 +191,11 @@ const ICON_PATHS = {
   medal: '<path d="M8 3L12 10L16 3"/><circle cx="12" cy="15" r="6"/><path d="M12 12.3V17.7M9.3 15H14.7"/>',
   download: '<path d="M12 3V15"/><path d="M7 10L12 15L17 10"/><path d="M4 17V20H20V17"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21C4 16.6 7.6 14 12 14C16.4 14 20 16.6 20 21"/>',
-  flame: '<path d="M12 21C8 21 6 18 6 15C6 11 9 9 9 6C9 4 8 3 8 3C13 4 14 9 12 11C14 10 15 8 15 6C17 8 18 11 18 14C18 18 16 21 12 21Z"/>'
+  flame: '<path d="M12 21C8 21 6 18 6 15C6 11 9 9 9 6C9 4 8 3 8 3C13 4 14 9 12 11C14 10 15 8 15 6C17 8 18 11 18 14C18 18 16 21 12 21Z"/>',
+  wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  star: '<path d="M12 3L14.8 8.9L21 9.7L16.5 14.1L17.6 20.5L12 17.4L6.4 20.5L7.5 14.1L3 9.7L9.2 8.9Z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'
 };
 function icon(name, size){
   size = size || 16;
@@ -222,6 +238,7 @@ function setTheme(t){
   if(t === 'light') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', t);
   Store.setRaw(THEME_KEY, t);
+  if(t === 'pink' && typeof loadPinkFont === 'function') loadPinkFont();
   applyThemeIcon();
 }
 function toggleTheme(){
@@ -251,6 +268,7 @@ rebuildIdIndex();
 function onBankUpdated(){
   rebuildSubjectIndex();
   rebuildIdIndex();
+  searchIndex = null;
   const onHome = document.querySelector('.home-tabs') && !document.getElementById('accountScreen') && !document.getElementById('welcomeScreen');
   if(onHome){ if(currentSubjectId) renderSubject(currentSubjectId); else renderHome(); }
 }
@@ -262,21 +280,6 @@ function saveHistoryEntry(entry){
   const h = loadHistory();
   h.unshift(entry);
   safeSetJSON(HISTORY_KEY, h.slice(0,80));
-}
-// Agrega aciertos por clave a partir del campo "field" de cada entrada del historial
-function aggregate(history, field, filterFn){
-  const agg = {};
-  history.forEach(h=>{
-    const b = h[field];
-    if(!b) return;
-    Object.keys(b).forEach(k=>{
-      if(filterFn && !filterFn(k)) return;
-      if(!agg[k]) agg[k] = {correct:0, total:0};
-      agg[k].correct += b[k].correct;
-      agg[k].total += b[k].total;
-    });
-  });
-  return agg;
 }
 
 /* ---------------- BANCO DE FALLADAS (persistente) ---------------- */
@@ -294,20 +297,67 @@ function updateFailedBank(){
   // Se parte de lo guardado sin filtrar: si el banco aún no ha cargado alguna pregunta, no se pierde su id
   const failed = new Set(safeGetJSON(FAILED_KEY, []));
   currentTest.questions.forEach((q,i)=>{
-    if(currentTest.answers[i] === q.correct) failed.delete(q.id);
+    const a = currentTest.answers[i];
+    if(a === null) return;                 // sin responder: ni se guarda como fallada ni se borra
+    if(a === q.correct) failed.delete(q.id);
     else failed.add(q.id);
   });
   saveFailedIds(Array.from(failed));
 }
 
+/* ---------------- FAVORITAS ---------------- */
+function loadFavIds(){ return safeGetJSON(FAV_KEY, []).filter(id=>findQuestionById(id)); }
+function favIdsOf(subjectId){ return loadFavIds().filter(id=>!subjectId || findQuestionById(id).subject === subjectId); }
+function favBtnHtml(id){
+  const on = safeGetJSON(FAV_KEY, []).includes(id);
+  return `<button type="button" class="fav-btn ${on?'on':''}" data-action="toggleFav" data-args="${argsAttr([id])}" data-fav="${escapeHtml(id)}" aria-pressed="${on}" aria-label="${on?'Quitar de favoritas':'Guardar en favoritas'}" title="Favorita">${icon('star',19)}</button>`;
+}
+function toggleFav(id){
+  const favs = new Set(safeGetJSON(FAV_KEY, []));
+  const on = !favs.has(id);
+  if(on) favs.add(id); else favs.delete(id);
+  safeSetJSON(FAV_KEY, Array.from(favs));
+  document.querySelectorAll('.fav-btn').forEach(b=>{
+    if(b.dataset.fav !== id) return;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? 'Quitar de favoritas' : 'Guardar en favoritas');
+  });
+  toast(on ? 'Guardada en favoritas' : 'Quitada de favoritas');
+}
+function startFavTest(subjectId){
+  const ids = favIdsOf(subjectId);
+  if(ids.length) startReviewTest(ids, 'fav', subjectId);
+}
+
+/* ---------------- AVISAR DE UN ERROR EN UNA PREGUNTA ---------------- */
+async function reportQuestion(id){
+  const note = prompt('¿Qué está mal en esta pregunta? (la respuesta, una errata, está repetida...)');
+  if(note === null) return;
+  try{ await Cloud.report(id, note.trim()); toast('¡Gracias! Aviso enviado.'); }
+  catch(e){ toast('No se pudo enviar el aviso. Prueba más tarde.'); }
+}
+function reportBtnHtml(id){
+  return `<button type="button" class="report-btn" data-action="reportQuestion" data-args="${argsAttr([id])}">${icon('warning',12)} Avisar de un error</button>`;
+}
+
 /* ---------------- DOMINIO TOTAL DEL BANCO ---------------- */
 function loadMasteredIds(){ return safeGetJSON(MASTERY_KEY, []); }
+// Una pregunta queda dominada al acertarla dos veces seguidas, y deja de estarlo si se falla.
 function updateMasteredIds(){
   const mastered = new Set(loadMasteredIds());
+  const half = Object.assign({}, safeGetJSON(STREAK_KEY, {}));
   currentTest.questions.forEach((q,i)=>{
-    if(currentTest.answers[i] === q.correct) mastered.add(q.id);
+    const a = currentTest.answers[i];
+    if(a === null) return;
+    if(a !== q.correct){ mastered.delete(q.id); delete half[q.id]; }
+    else if(!mastered.has(q.id)){
+      if(half[q.id]){ mastered.add(q.id); delete half[q.id]; }
+      else half[q.id] = 1;
+    }
   });
   safeSetJSON(MASTERY_KEY, Array.from(mastered));
+  safeSetJSON(STREAK_KEY, half);
 }
 function isFullMastery(){
   const m = new Set(loadMasteredIds());
@@ -357,9 +407,12 @@ function debugShowFail(){
 }
 
 /* ---------------- RÉCORD PERSONAL ---------------- */
+// Solo cuentan simulacros y tests de al menos 10 preguntas (un repaso de 1 pregunta no es un récord)
+function countsForRecord(h){ return h.mode === 'subject' || (h.total || 0) >= RECORD_MIN; }
 function getBestPercent(history){
-  if(!history.length) return null;
-  return Math.max(...history.map(h=>Math.round(h.score/(h.total||TEST_SIZE)*100)));
+  const valid = history.filter(h=>countsForRecord(h) && h.total);
+  if(!valid.length) return null;
+  return Math.max(...valid.map(h=>Math.round(h.score/h.total*100)));
 }
 
 /* ---------------- LOGROS ---------------- */
@@ -399,7 +452,7 @@ const REGULAR_ACHIEVEMENTS = [
 ];
 const GRAND_MASTER_ACHIEVEMENT = {
   id:'leyenda_112', icon:'medal', title:'Leyenda del 112',
-  desc:`Consigue todos los demás logros (menos el de duelos) y acierta alguna vez las ${QUESTIONS.length} preguntas del banco.`,
+  get desc(){ return `Consigue todos los demás logros (menos el de duelos) y domina las ${QUESTIONS.length} preguntas del banco.`; },
   legendary:true,
   check:(h,st) => REGULAR_ACHIEVEMENTS.filter(a=>!a.social).every(a=>a.check(h,st) || st.badges.includes(a.id)) && isFullMastery()
 };
@@ -459,6 +512,7 @@ const NO_SHUFFLE_PATTERNS = [
 function needsFixedOrder(q){ return q.options.length <= 2 || q.options.some(opt => NO_SHUFFLE_PATTERNS.some(p=>p.test(opt))); }
 function shuffleQuestionOptions(q){
   const base = { id:q.id, subject:q.subject, exam:q.exam, text:q.text, unverified:!!q.u };
+  if(q.e) base.e = q.e;
   if(needsFixedOrder(q)) return { ...base, options:q.options.slice(), correct:q.correct };
   const shuffled = shuffle(q.options.map((_,i)=>i));
   return { ...base, options:shuffled.map(i=>q.options[i]), correct:shuffled.indexOf(q.correct) };
@@ -470,6 +524,7 @@ function modeLabel(test){
   if(test.mode === 'review') return 'Repaso de falladas';
   if(test.mode === 'failed') return 'Falladas guardadas' + (s ? ' · ' + s.short : '');
   if(test.mode === 'unverified') return 'Preguntas no verificadas';
+  if(test.mode === 'fav') return 'Favoritas' + (s ? ' · ' + s.short : '');
   if(test.mode === 'duel') return 'Duelo' + (s ? ' · ' + s.short : '');
   return 'Test';
 }
@@ -479,6 +534,7 @@ function historyTag(h){
   if(h.mode === 'exam') return s.short + ' · ' + h.label;
   if(h.mode === 'review' || h.mode === 'failed') return 'Repaso' + (s ? ' · ' + s.short : '');
   if(h.mode === 'unverified') return 'Revisión';
+  if(h.mode === 'fav') return 'Favoritas' + (s ? ' · ' + s.short : '');
   if(h.mode === 'duel') return 'Duelo' + (s ? ' · ' + s.short : '');
   return 'Test';
 }
@@ -543,9 +599,9 @@ function rememberTest(questions, scope){
   recent[scope] = [questions.map(q=>q.id), (recent[scope] && recent[scope][0]) || []];
   safeSetJSON(RECENT_KEY, recent);
 }
-function buildSubjectTest(subjectId){
+function buildSubjectTest(subjectId, size){
   const scope = 'subject:' + subjectId;
-  const picked = pickFresh(questionsOf(subjectId), q=>q.exam, TEST_SIZE, scope);
+  const picked = pickFresh(questionsOf(subjectId), q=>q.exam, size || TEST_SIZE, scope);
   rememberTest(picked, scope);
   return makeTestShell('subject', subjectId, null, picked.map(shuffleQuestionOptions));
 }
@@ -558,25 +614,26 @@ function buildReviewTest(ids, mode, subjectId){
   return makeTestShell(mode || 'review', subjectId || null, null, picked.map(shuffleQuestionOptions));
 }
 
-function applyTimedMode(){
-  const chk = document.getElementById('timedMode');
-  if(chk && chk.checked){
+function applyTestPrefs(){
+  if(testPrefs.timed){
     currentTest.timed = true;
     currentTest.endTime = Date.now() + TIMED_SECONDS*1000;
   }
+  // Modo examen real: no se corrige nada hasta el final y se puede cambiar la respuesta
+  if(testPrefs.blind) currentTest.blind = true;
 }
 function launch(test, allowTimed){
   if(!test.questions.length) return;
   currentTest = test;
   lastQuizIndex = -1;
-  if(allowTimed) applyTimedMode();
+  if(allowTimed) applyTestPrefs();
   currentIndex = 0;
   saveProgress();
   startTimerIfNeeded();
   window.scrollTo(0,0);
   renderQuiz();
 }
-function startSubjectTest(subjectId){ launch(buildSubjectTest(subjectId), true); }
+function startSubjectTest(subjectId){ launch(buildSubjectTest(subjectId, simSizeFor(questionsOf(subjectId).length)), true); }
 function startExamTest(subjectId, temaIdx){
   const tema = temasOf(subjectId)[temaIdx];
   if(tema === undefined) return;
@@ -603,6 +660,7 @@ function repeatTest(){
   else if(t.mode === 'review') startReviewTest(t.questions.map(q=>q.id), 'review', t.subject);
   else if(t.mode === 'unverified') startUnverifiedTest(t.subject);
   else if(t.mode === 'failed') startFailedTest(t.subject);
+  else if(t.mode === 'fav') startFavTest(t.subject);
   else if(t.mode === 'duel') openDuels();
   else renderHome();
 }
@@ -679,8 +737,21 @@ function statsListHtml(agg, labelFn, emptyText){
     </div>`;
   }).join('') + '</div>';
 }
-function timedToggleHtml(){
-  return `<label class="mode-toggle"><input type="checkbox" id="timedMode"> ${icon('clock',15)} Modo cronometrado (45 min)</label>`;
+function testOptionsHtml(){
+  return `<label class="mode-toggle"><input type="checkbox" data-change="setTestPref" data-args='["timed"]' ${testPrefs.timed?'checked':''}> ${icon('clock',15)} Modo cronometrado (45 min)</label>
+    <label class="mode-toggle"><input type="checkbox" data-change="setTestPref" data-args='["blind"]' ${testPrefs.blind?'checked':''}> ${icon('shield',15)} Modo examen real (corrección al final)</label>`;
+}
+function simSizes(n){ const out = [10, 20, 40].filter(s=>s < n); out.push(Math.min(TEST_SIZE, n)); return Array.from(new Set(out)); }
+function simSizeFor(n){ const sizes = simSizes(n); return sizes.includes(testPrefs.size) ? testPrefs.size : sizes[sizes.length-1]; }
+function simHintText(n){
+  return `${Math.min(simSizeFor(n), n)} preguntas al azar de todos los temas, priorizando las que no salieron en el simulacro anterior.`;
+}
+function simSizeHtml(n){
+  const sizes = simSizes(n);
+  if(sizes.length < 2) return '';
+  const cur = simSizeFor(n);
+  return `<label class="sim-size">Preguntas del simulacro
+    <select data-change="setTestPref" data-args='["size"]'>${sizes.map(s=>`<option value="${s}" ${s===cur?'selected':''}>${s}</option>`).join('')}</select></label>`;
 }
 
 /* ---------------- FECHAS DE EXAMEN Y PLAN DIARIO ---------------- */
@@ -741,8 +812,53 @@ function nextExamCardHtml(){
       <b>${escapeHtml(s.name)}</b>
       <div class="ne-plan">${planDotsHtml(plan)} <span>${escapeHtml(planText(plan))}</span></div>
     </div>
-    <button class="btn-mini ${done ? 'ghost' : ''}" data-action="startSubjectTest" data-args='["${s.id}"]'>${done ? 'Otro más' : 'Hacer test'}</button>
+    <button class="btn-mini ne-btn ${done ? 'ghost' : ''}" data-action="startSubjectTest" data-args='["${s.id}"]'>${done ? 'Hacer otro test' : 'Hacer test de ' + escapeHtml(s.short)}</button>
   </div>`;
+}
+// Tema con peor porcentaje de aciertos (con un mínimo de respuestas para que sea fiable)
+function weakPoint(){
+  const agg = loadStats().agg;
+  let worst = null;
+  Object.keys(agg).forEach(k=>{
+    if(k.indexOf('t:') !== 0 || agg[k].t < 8) return;
+    const parts = k.slice(2).split('::'), subjectId = parts[0], tema = parts.slice(1).join('::');
+    if(!temasOf(subjectId).includes(tema)) return;
+    const pct = Math.round(agg[k].c / agg[k].t * 100);
+    if(pct < 70 && (!worst || pct < worst.pct)) worst = { subjectId, tema, pct };
+  });
+  return worst;
+}
+function weakPointHtml(){
+  const w = weakPoint();
+  if(!w) return '';
+  const s = getSubject(w.subjectId);
+  return `<div class="weak-card" style="--sc:${s.color}">
+    <div class="wk-icon">${icon('target',22)}</div>
+    <div class="wk-body"><span class="ne-eyebrow">Tu punto débil · ${w.pct}% de aciertos</span><b>${escapeHtml(s.short)} · ${escapeHtml(w.tema)}</b></div>
+    <button class="btn-mini" data-action="startExamTestByName" data-args="${argsAttr([w.subjectId, w.tema])}">Practicar</button>
+  </div>`;
+}
+
+/* ---------------- BUSCADOR DE PREGUNTAS ---------------- */
+let searchIndex = null;
+function searchQuestions(value){
+  const box = document.getElementById('searchResults');
+  if(!box) return;
+  const words = normText(value || '').split(' ').filter(w=>w.length >= 2);
+  if(!words.length || words.join('').length < 3){ box.innerHTML = ''; return; }
+  if(!searchIndex) searchIndex = QUESTIONS.map(q=>({ q, t: normText(q.text + ' ' + q.options.join(' ')) }));
+  const hits = searchIndex.filter(x=>words.every(w=>x.t.includes(w))).map(x=>x.q);
+  if(!hits.length){ box.innerHTML = '<p class="empty-hint">Ninguna pregunta coincide.</p>'; return; }
+  box.innerHTML = `<p class="achv-count">${hits.length} ${hits.length===1?'pregunta':'preguntas'}${hits.length > 25 ? ' · se muestran 25' : ''}</p>` +
+    hits.slice(0, 25).map(q=>{
+      const s = getSubject(q.subject);
+      return `<div class="review-item" style="--sc:${s.color}">
+        <div class="review-tag">${escapeHtml(s.short)} · ${escapeHtml(q.exam)}${favBtnHtml(q.id)}</div>
+        <div class="rq">${escapeHtml(q.text)}</div>
+        <div class="ra correct-ans">Correcta: ${LETTERS[q.correct]}) ${escapeHtml(q.options[q.correct])}</div>
+        ${q.e ? `<div class="explain">${icon('book',14)} <span>${escapeHtml(q.e)}</span></div>` : ''}
+      </div>`;
+    }).join('');
 }
 // Bloque de fecha de examen en la pantalla de la asignatura
 function examDateBlockHtml(subjectId){
@@ -795,10 +911,11 @@ function renderHome(){
   currentSubjectId = null;
   document.getElementById('topbarSub').textContent = 'Técnico en Emergencias Sanitarias';
   const history = loadHistory();
-  const unverifiedCount = QUESTIONS.filter(q=>q.u).length;
-  const failedCount = loadFailedIds().length;
+  // Primero las asignaturas con el examen más cerca; las que ya pasaron o no tienen fecha, al final
+  const examOrder = s=>{ const d = daysUntil(s.exam_date); return (d === null || d < 0) ? 1e9 : d; };
+  const subjectsSorted = SUBJECTS.map((s,i)=>({ s, i })).sort((a,b)=>(examOrder(a.s) - examOrder(b.s)) || (a.i - b.i)).map(x=>x.s);
 
-  const subjectsHtml = '<div class="subject-list">' + SUBJECTS.map(s=>{
+  const subjectsHtml = '<div class="subject-list">' + subjectsSorted.map(s=>{
     const n = questionsOf(s.id).length;
     const nt = temasOf(s.id).length;
     const m = subjectMastery(s.id);
@@ -825,9 +942,9 @@ function renderHome(){
     </div>
   `).join('') + '</div>';
 
-  const subjAgg = aggregate(history, 'subjBreakdown');
+  const agg = loadStats().agg;
   const orderedAgg = {};
-  SUBJECTS.forEach(s=>{ if(subjAgg[s.id]) orderedAgg[s.id] = subjAgg[s.id]; });
+  SUBJECTS.forEach(s=>{ const a = agg['s:' + s.id]; if(a && a.t) orderedAgg[s.id] = { correct:a.c, total:a.t }; });
 
   document.getElementById('screen').innerHTML = `
     <div class="home">
@@ -841,12 +958,7 @@ function renderHome(){
             <h2>Prepárate<br>para la <em>guardia</em></h2>
           </div>
         </div>
-        <p>Elige una asignatura y entrena por temas o con simulacros de examen de esa asignatura.</p>
-        <div class="stat-row">
-          <div class="stat"><b>${QUESTIONS.length}</b><span>preguntas</span></div>
-          <div class="stat"><b>${SUBJECTS.length}</b><span>asignaturas</span></div>
-          <div class="stat"><b>${SUBJECTS.reduce((n,x)=>n+temasOf(x.id).length,0)}</b><span>temas</span></div>
-        </div>
+        <p>${QUESTIONS.length} preguntas de ${SUBJECTS.length} asignaturas. Entrena por temas o con simulacros de examen.</p>
       </div>
 
       ${playerCardHtml()}
@@ -860,8 +972,13 @@ function renderHome(){
 
       ${homeTab === 'asignaturas' ? `
       ${nextExamCardHtml()}
+      ${weakPointHtml()}
       <div class="section-label">Elige asignatura</div>
       ${subjectsHtml}
+
+      <div class="section-label">Buscar una pregunta</div>
+      <label class="search-box">${icon('search',17)}<input type="search" id="qSearch" placeholder="Escribe una palabra: glasgow, ambulancia..." data-input="searchQuestions" autocomplete="off" aria-label="Buscar una pregunta"></label>
+      <div id="searchResults"></div>
 
       ` : homeTab === 'ranking' ? `
       <div id="rankingBox" class="ranking-box"><p class="empty-hint">Cargando ranking…</p></div>
@@ -878,7 +995,7 @@ function renderHome(){
       <div class="section-label">Récord personal</div>
       <div class="record-card">
         <div class="record-icon">${icon('award',24)}</div>
-        <div><b>${bestPercent}%</b><span>Tu mejor resultado hasta ahora. ¡A por más!</span></div>
+        <div><b>${bestPercent}%</b><span>Tu mejor resultado en tests de ${RECORD_MIN} preguntas o más. ¡A por más!</span></div>
       </div>` : ''}
 
       <div class="section-label">Logros</div>
@@ -908,13 +1025,14 @@ function renderSubject(id){
   const qs = questionsOf(id);
   const temas = temasOf(id);
   const failedCount = failedIdsOf(id).length;
+  const favCount = favIdsOf(id).length;
   const unvCount = qs.filter(q=>q.u).length;
   const history = loadHistory().filter(h=>h.subject === id);
   const m = subjectMastery(id);
 
-  const temaAgg = aggregate(loadHistory(), 'temaBreakdown', k=>k.startsWith(id+'::'));
+  const agg = loadStats().agg;
   const temaOrdered = {};
-  temas.forEach(t=>{ const k = id+'::'+t; if(temaAgg[k]) temaOrdered[k] = temaAgg[k]; });
+  temas.forEach(t=>{ const k = id+'::'+t, a = agg['t:' + k]; if(a && a.t) temaOrdered[k] = { correct:a.c, total:a.t }; });
 
   document.getElementById('screen').innerHTML = `
     <div class="home" style="--sc:${s.color}">
@@ -930,11 +1048,12 @@ function renderSubject(id){
           <div class="stat"><b>${temas.length}</b><span>${temas.length===1?'tema':'temas'}</span></div>
           <div class="stat"><b>${m}%</b><span>dominado</span></div>
         </div>
-        ${timedToggleHtml()}
+        ${testOptionsHtml()}
       </div>
 
       <button class="btn-primary" data-action="startSubjectTest" data-args='["${id}"]'>${icon('siren',20)} Simulacro de examen</button>
-      <p class="sim-hint">${Math.min(TEST_SIZE, qs.length)} preguntas al azar de todos los temas, priorizando las que no salieron en el simulacro anterior.</p>
+      ${simSizeHtml(qs.length)}
+      <p class="sim-hint" id="simHint">${simHintText(qs.length)}</p>
       ${examDateBlockHtml(id)}
 
       <div class="home-tabs">
@@ -959,13 +1078,24 @@ function renderSubject(id){
         <button class="btn-mini" data-action="startFailedTest" data-args='["${id}"]'>Repasar</button>
       </div>` : ''}
 
+      ${favCount > 0 ? `
+      <div class="section-label">Favoritas</div>
+      <div class="exam-practice-item">
+        <div class="epi-info"><b>${icon('star',15)} Tus preguntas favoritas</b><span>${favCount} ${favCount===1?'pregunta guardada':'preguntas guardadas'}</span></div>
+        <button class="btn-mini" data-action="startFavTest" data-args='["${id}"]'>Practicar</button>
+      </div>` : ''}
+
       ${unvCount > 0 ? `
       <div class="section-label">Revisión</div>
       <div class="exam-practice-item">
         <div class="epi-info"><b>${icon('warning',15)} Preguntas no verificadas</b><span>${unvCount} ${unvCount===1?'pregunta':'preguntas'} sin confirmar oficialmente</span></div>
         <button class="btn-mini" data-action="startUnverifiedTest" data-args='["${id}"]'>Repasar</button>
       </div>` : ''}
+
+      <div class="section-label">Para estudiar</div>
+      <button class="btn-pdf" data-action="downloadAnswersPdf" data-args='["${id}"]'>${icon('download',18)} PDF con todas las respuestas</button>
       ` : `
+      <p class="sim-hint mastery-hint">Una pregunta cuenta como dominada cuando la aciertas dos veces seguidas. Si la fallas, vuelve a estar pendiente.</p>
       <div class="section-label">Rendimiento por tema</div>
       ${statsListHtml(temaOrdered, k=>k.split('::').slice(1).join('::'), 'Haz algún test de esta asignatura para ver tu rendimiento por tema.')}
 
@@ -986,14 +1116,16 @@ function renderQuiz(){
   const subj = getSubject(q.subject);
   const userAnswer = currentTest.answers[currentIndex];
   const answered = userAnswer !== null;
-  // En los duelos no se enseña si aciertas hasta el final (si no, se podría repetir sabiendo las respuestas)
-  const isDuel = currentTest.mode === 'duel';
+  // En los duelos no se enseña si aciertas hasta el final (si no, se podría repetir sabiendo las respuestas).
+  // El modo examen real hace lo mismo, pero ahí sí se puede cambiar la respuesta.
+  const blind = !!currentTest.blind && currentTest.mode !== 'duel';
+  const isDuel = currentTest.mode === 'duel' || blind;
 
   const optionsHtml = q.options.map((opt,i)=>{
     let cls = 'option';
     let state = '';
     if(answered && isDuel){
-      cls += ' disabled';
+      if(!blind) cls += ' disabled';
       if(i===userAnswer){ cls += ' selected'; state = ', tu respuesta'; }
     } else if(answered){
       cls += ' disabled';
@@ -1002,7 +1134,7 @@ function renderQuiz(){
     } else if(i===userAnswer){
       cls += ' selected';
     }
-    return `<button type="button" class="${cls}" data-action="selectAnswer" data-args='[${i}]' ${answered?'disabled':''} aria-label="Opción ${LETTERS[i]}: ${escapeHtml(opt)}${state}">
+    return `<button type="button" class="${cls}" data-action="selectAnswer" data-args='[${i}]' ${answered && !blind?'disabled':''} aria-label="Opción ${LETTERS[i]}: ${escapeHtml(opt)}${state}">
       <div class="letter">${LETTERS[i]}</div>
       <div>${escapeHtml(opt)}</div>
     </button>`;
@@ -1010,7 +1142,7 @@ function renderQuiz(){
 
   let feedbackHtml = '';
   if(answered && isDuel){
-    feedbackHtml = `<div class="feedback show duel">${icon('check',15)} <span>Respuesta guardada. Verás los aciertos al terminar el duelo.</span></div>`;
+    feedbackHtml = `<div class="feedback show duel">${icon('check',15)} <span>${blind ? 'Respuesta guardada. Puedes cambiarla; se corrige al terminar.' : 'Respuesta guardada. Verás los aciertos al terminar el duelo.'}</span></div>`;
   } else if(answered){
     const correct = userAnswer === q.correct;
     if(!currentTest.phrases) currentTest.phrases = new Array(total).fill(null);
@@ -1018,6 +1150,7 @@ function renderQuiz(){
     feedbackHtml = `<div class="feedback show ${correct?'ok':'no'}">
       ${correct ? icon('check',15) : icon('cross',15)} <span>${currentTest.phrases[currentIndex]}</span>
     </div>`;
+    if(q.e) feedbackHtml += `<div class="explain">${icon('book',14)} <span>${escapeHtml(q.e)}</span></div>`;
     let lastAnsweredIdx = currentTest.answers.length-1;
     while(lastAnsweredIdx>=0 && currentTest.answers[lastAnsweredIdx]===null) lastAnsweredIdx--;
     const combo = currentCombo();
@@ -1062,12 +1195,13 @@ function renderQuiz(){
       <div class="q-card ${entering && !prefersReducedMotion() ? 'q-enter' : ''}">
         <div class="q-card-head">
           <div class="q-tag">${escapeHtml(subj.short)}<small>${escapeHtml(q.exam)}</small></div>
-          <div class="mascot ${answered?'react':''}">${mascotSVG(mascotState, 46)}</div>
+          <div class="q-head-right">${favBtnHtml(q.id)}<div class="mascot ${answered?'react':''}">${mascotSVG(mascotState, 46)}</div></div>
         </div>
         ${q.unverified ? '<div class="unverified-badge">'+icon('warning',12)+' Respuesta sin verificar oficialmente</div>' : ''}
         <div class="q-text">${escapeHtml(q.text)}</div>
         <div class="options">${optionsHtml}</div>
         ${feedbackHtml}
+        ${answered && !isDuel ? reportBtnHtml(q.id) : ''}
       </div>
 
       <div class="nav-buttons">
@@ -1086,12 +1220,14 @@ function renderQuiz(){
 }
 
 function selectAnswer(i){
-  if(currentTest.answers[currentIndex] !== null) return;
+  const blind = !!currentTest.blind && currentTest.mode !== 'duel';
+  if(currentTest.answers[currentIndex] !== null && !blind) return;
+  if(i < 0 || i >= currentTest.questions[currentIndex].options.length) return;
   currentTest.answers[currentIndex] = i;
   if(!currentTest.phrases) currentTest.phrases = new Array(currentTest.questions.length).fill(null);
   const q = currentTest.questions[currentIndex];
   currentTest.phrases[currentIndex] = pickPhrase(i === q.correct, LETTERS[q.correct]);
-  if(currentTest.mode === 'duel') vibrate(12);
+  if(currentTest.mode === 'duel' || blind) vibrate(12);
   else if(i === q.correct) vibrate(currentCombo() >= 5 ? [12,40,12] : 12);
   else vibrate([70,50,70]);
   justAnswered = true;
@@ -1103,6 +1239,10 @@ function goToQuestion(i){ currentIndex = i; renderQuiz(); }
 
 /* ---------------- RENDER: RESULTADOS ---------------- */
 function finishTest(timeUp){
+  if(timeUp !== true){
+    const blanks = currentTest.answers.filter(a=>a === null).length;
+    if(blanks && !confirm(`Te ${blanks === 1 ? 'queda 1 pregunta' : 'quedan ' + blanks + ' preguntas'} sin responder. ¿Terminar el test de todas formas?`)) return;
+  }
   clearTimer();
   const total = currentTest.questions.length;
   let score = 0;
@@ -1130,15 +1270,20 @@ function finishTest(timeUp){
   const entry = {date:Date.now(), score, total, mode:currentTest.mode, subject:currentTest.subject, label:currentTest.label, subjBreakdown, temaBreakdown, maxCombo};
   saveHistoryEntry(entry);
   const xpInfo = recordTestStats(entry);
-  // Puntos del ranking semanal: 1 por acierto y +10 por aprobar un simulacro
+  // Puntos del ranking semanal: 1 por acierto (medio punto si la pregunta ya estaba dominada)
+  // y +10 por aprobar un simulacro de al menos 20 preguntas
+  const masteredBefore = new Set(loadMasteredIds());
+  let fresh = 0, known = 0;
+  currentTest.questions.forEach((q,i)=>{ if(currentTest.answers[i] === q.correct){ if(masteredBefore.has(q.id)) known++; else fresh++; } });
+  const bonus = (currentTest.mode === 'subject' && total >= BONUS_MIN && score >= passScoreFor(total)) ? 10 : 0;
   if(total > 0) Cloud.recordScore({ subject: currentTest.subject, mode: currentTest.mode, correct: score, total,
-    points: score + ((currentTest.mode === 'subject' && score >= passScoreFor(total)) ? 10 : 0) });
+    points: fresh + Math.floor(known / 2) + bonus });
   updateFailedBank();
   updateMasteredIds();
   clearProgress();
 
   const newPercent = Math.round(score/total*100);
-  const isNewRecord = historyBefore.length>0 && (prevBest===null || newPercent>prevBest);
+  const isNewRecord = countsForRecord(entry) && prevBest !== null && newPercent > prevBest;
   const newlyUnlocked = getAchievements(loadHistory()).filter(a=>a.earned && !achvBefore.includes(a.id));
   persistBadges();
 
@@ -1165,10 +1310,12 @@ function renderResults(score, total, timeUp, isNewRecord, newlyUnlocked, xpInfo)
         const s = getSubject(x.q.subject);
         return `
         <div class="review-item" style="--sc:${s.color}">
-          <div class="review-tag">${escapeHtml(s.short)} · ${escapeHtml(x.q.exam)} · Pregunta ${x.i+1}${x.q.unverified ? ' · '+icon('warning',10)+' sin verificar' : ''}</div>
+          <div class="review-tag">${escapeHtml(s.short)} · ${escapeHtml(x.q.exam)} · Pregunta ${x.i+1}${x.q.unverified ? ' · '+icon('warning',10)+' sin verificar' : ''}${favBtnHtml(x.q.id)}</div>
           <div class="rq">${escapeHtml(x.q.text)}</div>
           <div class="ra user-wrong">${x.ans!==null ? 'Tu respuesta: '+LETTERS[x.ans]+') '+escapeHtml(x.q.options[x.ans]) : 'No respondida'}</div>
           <div class="ra correct-ans">Correcta: ${LETTERS[x.q.correct]}) ${escapeHtml(x.q.options[x.q.correct])}</div>
+          ${x.q.e ? `<div class="explain">${icon('book',14)} <span>${escapeHtml(x.q.e)}</span></div>` : ''}
+          ${reportBtnHtml(x.q.id)}
         </div>`;
       }).join('');
   } else if(total){
@@ -1264,6 +1411,7 @@ function animateScoreCount(target){
 
 /* ---------------- EVENTOS (delegación, sin onclick en el HTML) ---------------- */
 const ACTIONS = {
+  toggleFav, startFavTest, reportQuestion, downloadAnswersPdf, setTestPref, startExamTestByName, searchQuestions,
   calGoTo, calMove,
   createDuel,
   joinDuelFromInput,
@@ -1323,6 +1471,30 @@ document.addEventListener('change', e=>{
   let args = [];
   if(el.dataset.args){ try{ args = JSON.parse(el.dataset.args); }catch(err){ return; } }
   fn(...args, el.type === 'checkbox' ? el.checked : el.value);
+});
+
+// Campos que actúan mientras se escribe (buscador)
+document.addEventListener('input', e=>{
+  const el = e.target.closest('[data-input]');
+  if(!el) return;
+  const fn = ACTIONS[el.dataset.input];
+  if(fn) fn(el.value);
+});
+// Teclado (ordenador): 1-4 o A-D responden, flechas cambian de pregunta, Intro avanza
+document.addEventListener('keydown', e=>{
+  if(e.ctrlKey || e.metaKey || e.altKey || !currentTest || !document.querySelector('.quiz')) return;
+  const tag = (e.target && e.target.tagName) || '';
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  const k = e.key.toLowerCase();
+  const n = currentTest.questions[currentIndex].options.length;
+  let idx = -1;
+  if(k >= '1' && k <= '9') idx = Number(k) - 1;
+  else if(k.length === 1 && k >= 'a' && k <= 'd') idx = k.charCodeAt(0) - 97;
+  if(idx >= 0 && idx < n){ e.preventDefault(); selectAnswer(idx); return; }
+  const last = currentIndex === currentTest.questions.length - 1;
+  if(k === 'arrowright'){ e.preventDefault(); nextQuestion(); }
+  else if(k === 'arrowleft'){ e.preventDefault(); prevQuestion(); }
+  else if(k === 'enter' && tag !== 'BUTTON'){ e.preventDefault(); if(last) finishTest(); else nextQuestion(); }
 });
 
 /* ---------------- INIT ---------------- */

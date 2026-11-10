@@ -6,6 +6,7 @@
    3) data.js, que va dentro del código como copia de seguridad.
    SUBJECTS y QUESTIONS se actualizan "en el sitio" para que el resto de la app no cambie. */
 const BANK_CACHE_KEY = 'tes_bank_cache_v1';
+const BANK_VERSION_KEY = 'tes_bank_version_v1'; // huella del banco guardado en el dispositivo
 
 const Bank = (function(){
   let source = 'código';
@@ -18,6 +19,8 @@ const Bank = (function(){
     const questions = data.questions.filter(q=>q && q.id && q.subject && Array.isArray(q.options) && q.options.length >= 2).map(q=>{
       const out = { id:q.id, subject:q.subject, exam:q.exam, text:q.text, options:q.options.slice(), correct:Number(q.correct) };
       if(q.u || q.unverified) out.u = true;
+      const e = q.e || q.explanation;
+      if(e) out.e = String(e);
       return out;
     });
     if(!subjects.length || !questions.length) return null;
@@ -31,13 +34,14 @@ const Bank = (function(){
     replaceInPlace(QUESTIONS, n.questions);
     return true;
   }
-  // Huella completa del banco: cualquier cambio (texto, opciones, tema, colores, fechas) refresca la app
-  function signature(){ try{ return JSON.stringify([SUBJECTS, QUESTIONS]); }catch(e){ return String(Date.now()); } }
+  // Huella del banco que la app tiene cargado ahora mismo (la calcula Supabase: bank_version)
+  let version = (typeof BANK_VERSION !== 'undefined') ? BANK_VERSION : null;
 
   // Paso síncrono, antes de que arranque la app: usa la copia del dispositivo si existe
   function applyCached(){
-    const cached = Store.get(BANK_CACHE_KEY, null);
-    if(cached && apply(cached)){ source = 'copia del dispositivo'; return true; }
+    let cached = null;
+    try{ cached = JSON.parse(Store.getRaw(BANK_CACHE_KEY)); }catch(e){}
+    if(cached && apply(cached)){ source = 'copia del dispositivo'; version = Store.getRaw(BANK_VERSION_KEY) || null; return true; }
     return false;
   }
 
@@ -46,17 +50,25 @@ const Bank = (function(){
     if(typeof SUPABASE_URL === 'undefined') return;
     try{
       const headers = { apikey: SUPABASE_KEY };
+      // 1) Pregunta corta: ¿ha cambiado algo? Si no, no se descarga ni se guarda nada
+      let remote = null;
+      try{
+        const vr = await fetch(SUPABASE_URL + '/rest/v1/rpc/bank_version', { method:'POST', headers: Object.assign({ 'Content-Type':'application/json' }, headers), body:'{}' });
+        if(vr.ok) remote = await vr.json();
+      }catch(e){}
+      if(remote && remote === version){ source = source === 'código' ? 'código (al día)' : source; return; }
+      // 2) Hay cambios (o no se pudo saber): se descarga el banco entero
       const [sr, qr] = await Promise.all([
-        fetch(SUPABASE_URL + '/rest/v1/subjects?select=id,name,short,icon,color,exam_date&order=sort', { headers }),
-        fetch(SUPABASE_URL + '/rest/v1/questions?select=id,subject,exam,text,options,correct,unverified&order=sort&limit=5000', { headers })
+        fetch(SUPABASE_URL + '/rest/v1/subjects?select=id,name,short,icon,color,exam_date&active=eq.true&order=sort', { headers }),
+        fetch(SUPABASE_URL + '/rest/v1/questions?select=id,subject,exam,text,options,correct,unverified,explanation&active=eq.true&order=sort&limit=5000', { headers })
       ]);
       if(!sr.ok || !qr.ok) return;
       const data = { subjects: await sr.json(), questions: await qr.json() };
-      const before = signature();
       if(!apply(data)) return;
       source = 'nube';
-      Store.set(BANK_CACHE_KEY, { subjects: SUBJECTS, questions: QUESTIONS.map(q=>q.u ? q : Object.assign({}, q)), savedAt: Date.now() });
-      if(signature() !== before && typeof onChanged === 'function') onChanged();
+      Store.setRaw(BANK_CACHE_KEY, JSON.stringify({ subjects: SUBJECTS, questions: QUESTIONS, savedAt: Date.now() }));
+      if(remote){ version = remote; Store.setRaw(BANK_VERSION_KEY, remote); }
+      if(typeof onChanged === 'function') onChanged();
     }catch(e){ /* sin conexión o Supabase caído: seguimos con lo que hay */ }
   }
 

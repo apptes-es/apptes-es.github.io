@@ -865,6 +865,9 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .rank-4{background:#E0312B;}
 .rank-5{background:linear-gradient(135deg,#F5C518,#E08A00); color:var(--navy);}
 .rank-6{background:linear-gradient(135deg,#10233D,#2F8CFF 45%,#F5C518); box-shadow:0 0 0 3px rgba(245,197,24,.45);}
+.rank-7{background:linear-gradient(135deg,#0B6E4F,#2FA35B 50%,#B9F2C9); box-shadow:0 0 0 3px rgba(47,163,91,.45);}
+.rank-8{background:linear-gradient(135deg,#7A1020,#E0312B 50%,#FFB199); box-shadow:0 0 0 3px rgba(224,49,43,.5);}
+.rank-9{background:conic-gradient(from 210deg,#F5C518,#E0312B,#7B4FD6,#2F8CFF,#2FA35B,#F5C518); box-shadow:0 0 0 3px rgba(245,197,24,.6),0 0 14px rgba(245,197,24,.55);}
 
 /* --- tarjeta del jugador --- */
 .player-card{

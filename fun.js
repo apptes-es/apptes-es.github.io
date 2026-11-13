@@ -182,7 +182,10 @@ const RANKS = [
   { min: 700,  name: 'Técnico veterano',         icon: 'shield' },
   { min: 1300, name: 'Jefe de dotación',         icon: 'truck' },
   { min: 2200, name: 'Coordinador 112',          icon: 'siren' },
-  { min: 3500, name: 'Leyenda de la ambulancia', icon: 'medal' }
+  { min: 3500, name: 'Leyenda de la ambulancia', icon: 'medal' },
+  { min: 6000, name: 'Instructor de emergencias', icon: 'award' },
+  { min: 12000, name: 'Héroe del 061',           icon: 'star' },
+  { min: 20000, name: 'Mito de las emergencias',  icon: 'flame' }
 ];
 function rankFor(xp){
   let idx = 0;

@@ -13,6 +13,8 @@ const SYNC_KEYS = [
   'tes_qstreak_v1', 'tes_fav_v1'
 ];
 const SCORE_QUEUE_KEY = 'tes_score_queue_v1'; // puntos pendientes de subir al ranking
+const ACCESS_KEY = 'tes_access_v1';          // {uid, ok, admin}: si la cuenta tiene acceso (no se sincroniza)
+const ADMIN_NAME = 'Abraham';
 
 const Cloud = (function(){
   let session = null;        // {access_token, refresh_token, expires_at, user:{id,email,user_metadata}}
@@ -22,6 +24,21 @@ const Cloud = (function(){
   let applyingRemote = false;
   let accountMsg = null;     // {type:'ok'|'error', text}
   let accountView = 'login'; // login | signup
+  let access = parse(Store.getRaw(ACCESS_KEY), null);
+
+  /* ---------- ACCESO: solo cuentas aprobadas por el administrador ---------- */
+  function canUse(){ return !!(session && access && access.uid === session.user.id && access.ok); }
+  function isAdmin(){ return canUse() && !!access.admin; }
+  async function checkAccess(){
+    if(!session) return false;
+    try{
+      const rows = await api('/rest/v1/profiles?select=approved,is_admin&id=eq.' + session.user.id);
+      const r = (rows && rows[0]) || {};
+      access = { uid: session.user.id, ok: !!(r.approved || r.is_admin), admin: !!r.is_admin };
+      Store.setRaw(ACCESS_KEY, JSON.stringify(access));
+    }catch(e){ /* sin red: se queda lo último que se supo */ }
+    return canUse();
+  }
 
   /* ---------- HTTP ---------- */
   async function api(path, opts){
@@ -99,6 +116,9 @@ const Cloud = (function(){
 
   async function pull(){
     if(!(await ensureFreshToken())) return;
+    const wasOk = canUse();
+    if(!(await checkAccess())){ setStatus('idle'); if(!document.getElementById('accountScreen') || accountView !== 'newpass') renderGate(); return; }
+    if(!wasOk && !(document.getElementById('accountScreen') && accountView === 'newpass')) renderHome();
     setStatus('syncing');
     try{
       const rows = await api('/rest/v1/user_data?select=data,updated_at&user_id=eq.' + session.user.id);
@@ -128,6 +148,7 @@ const Cloud = (function(){
   async function push(immediate){
     if(pushTimer){ clearTimeout(pushTimer); pushTimer = null; }
     if(!immediate){ pushTimer = setTimeout(()=>push(true), 2500); return; }
+    if(!canUse()) return;
     if(!(await ensureFreshToken())) return;
     setStatus('syncing');
     try{
@@ -142,14 +163,14 @@ const Cloud = (function(){
   Store.onChange(key=>{
     if(applyingRemote || SYNC_KEYS.indexOf(key) === -1) return;
     Store.setRaw(LOCAL_STAMP_KEY, String(Date.now()));
-    if(session) push(false);
+    if(canUse()) push(false);
   });
   window.addEventListener('pagehide', ()=>{ if(pushTimer && session){ push(true); } });
   window.addEventListener('online', ()=>{ if(session) pull(); });
 
   /* ---------- RANKING SEMANAL ---------- */
   function recordScore(entry){
-    if(!session) return;   // los invitados no puntúan
+    if(!canUse()) return;   // sin acceso no se puntúa
     const q = Store.get(SCORE_QUEUE_KEY, []);
     q.push(Object.assign({ at: new Date().toISOString() }, entry));
     Store.set(SCORE_QUEUE_KEY, q.slice(-50));
@@ -157,7 +178,7 @@ const Cloud = (function(){
   }
   let flushing = false;
   async function flushScores(){
-    if(flushing || !session) return;
+    if(flushing || !canUse()) return;
     flushing = true;
     try{
       if(!(await ensureFreshToken())) return;
@@ -315,6 +336,7 @@ const Cloud = (function(){
     if(pushTimer) await push(true);
     try{ await api('/auth/v1/logout', { method:'POST' }); }catch(e){}
     saveSession(null);
+    access = null; Store.remove(ACCESS_KEY);
     setStatus('idle');
   }
 
@@ -346,6 +368,7 @@ const Cloud = (function(){
     if(typeof clearTimer === 'function') clearTimer();
     document.getElementById('topbarSub').textContent = 'Mi cuenta';
     let inner;
+    if(session && accountView !== 'newpass' && !canUse()){ renderBlocked(); return; }
     if(session && accountView === 'newpass'){
       inner = `
         <div class="section-label">Nueva contraseña</div>
@@ -366,6 +389,7 @@ const Cloud = (function(){
         ${msgHtml()}
         <p class="empty-hint">Tu historial, falladas, logros y el test a medias se guardan en tu cuenta. Entra con el mismo email en otro móvil u ordenador y lo tendrás todo.</p>
         <button class="btn-primary" data-action="cloudSyncNow">${icon('route',18)} Sincronizar ahora</button>
+        ${isAdmin() ? `<button class="btn-secondary acc-full" data-action="openAdmin">${icon('shield',18)} Gestionar accesos</button>` : ''}
         <button class="btn-secondary acc-full" data-action="cloudLogout">Cerrar sesión</button>`;
     } else if(accountView === 'signup'){
       inner = `
@@ -392,7 +416,7 @@ const Cloud = (function(){
     } else {
       inner = `
         <div class="section-label">Iniciar sesión</div>
-        <p class="empty-hint">Es opcional: la app funciona igual sin cuenta. Con cuenta, tu progreso se guarda en la nube y lo ves en cualquier dispositivo.</p>
+        <p class="empty-hint">Entra con tu cuenta para usar la app. Si no tienes acceso, contacta con el administrador (${ADMIN_NAME}).</p>
         ${msgHtml()}
         <form data-form="login" class="acc-form">
           <label>Email<input name="email" type="email" autocomplete="email" required></label>
@@ -400,12 +424,11 @@ const Cloud = (function(){
           <button class="btn-primary" type="submit">Entrar</button>
         </form>
         <button class="acc-link" data-action="cloudView" data-args='["recover"]'>¿Has olvidado la contraseña?</button>
-        <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>
-        <button class="acc-link welcome-guest" data-action="renderHome" data-guest="1">Continuar como invitado</button>`;
+        <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>`;
     }
     document.getElementById('screen').innerHTML = `
       <div class="home" id="accountScreen">
-        <button class="back-link" data-action="renderHome">${icon('chevronLeft',16)} Inicio</button>
+        ${canUse() ? `<button class="back-link" data-action="renderHome">${icon('chevronLeft',16)} Inicio</button>` : ''}
         ${inner}
       </div>`;
   }
@@ -441,12 +464,15 @@ const Cloud = (function(){
     e.preventDefault();
     accountMsg = null;
     setBusy(f, true);
-    try{ await FORMS[f.dataset.form](f); renderAccount(); updateBadge(); }
+    try{
+      await FORMS[f.dataset.form](f);
+      updateBadge();
+      if(canUse() && (f.dataset.form === 'login' || f.dataset.form === 'signup')){ accountMsg = null; renderHome(); toast('¡Dentro! Tu progreso ya está sincronizado.'); }
+      else renderAccount();
+    }
     catch(err){ accountMsg = { type:'error', text: friendlyError(err) }; renderAccount(); }
   });
 
-  // Recordar que en este dispositivo se eligió entrar como invitado
-  document.addEventListener('click', e=>{ if(e.target.closest('[data-guest]')) Store.setRaw(DEVICE_MODE_KEY, 'guest'); });
 
   let onRemoteApplied = null;
   async function init(onApplied){
@@ -454,17 +480,78 @@ const Cloud = (function(){
     session = parse(Store.getRaw(SESSION_KEY), null);
     updateBadge();
     if(await captureRecoveryFromUrl()) return;
-    if(session){ pull(); return; }
-    // Sin sesión: el dispositivo recuerda si ya tuvo cuenta, si entró como invitado o si es nuevo
-    const mode = Store.getRaw(DEVICE_MODE_KEY);
-    if(mode === 'guest') return;                       // invitado: directo al inicio
-    if(mode === 'user'){                               // ya tiene cuenta: directo a iniciar sesión
+    if(session){ if(!canUse()) renderGate(); pull(); return; }
+    renderGate();
+  }
+
+  // Lo que ve quien no puede usar la app: entrar/crear cuenta, o el aviso de cuenta sin acceso
+  function renderGate(){
+    if(typeof clearTimer === 'function') clearTimer();
+    if(session){ renderBlocked(); return; }
+    if(Store.getRaw(DEVICE_MODE_KEY) === 'user'){
       accountView = 'login';
-      accountMsg = { type:'ok', text:'¡Hola de nuevo! Inicia sesión para recuperar tu progreso.' };
+      if(!accountMsg) accountMsg = { type:'ok', text:'¡Hola de nuevo! Inicia sesión para entrar.' };
       renderAccount();
       return;
     }
-    renderWelcome();                                   // nuevo: pantalla de bienvenida
+    renderWelcome();
+  }
+  function renderBlocked(){
+    document.getElementById('topbarSub').textContent = 'Acceso restringido';
+    const checking = !access || access.uid !== session.user.id;
+    document.getElementById('screen').innerHTML = `
+      <div class="home welcome" id="gateScreen">
+        <div class="welcome-card">
+          <div class="welcome-mascot">${mascotSVG('sad', 84)}</div>
+          <h2 class="welcome-title">${checking ? 'Comprobando acceso…' : 'Sin acceso'}</h2>
+          <p class="welcome-text">${checking ? 'Un momento, estamos comprobando tu cuenta.' : `Contacta con el administrador para seguir usando la app (${ADMIN_NAME}).`}</p>
+          <div class="acc-email">${escapeHtml(session.user.email || '')}</div>
+          <button class="btn-primary" data-action="cloudSyncNow">Comprobar de nuevo</button>
+          <button class="btn-secondary acc-full" data-action="cloudLogout">Cerrar sesión</button>
+        </div>
+      </div>`;
+  }
+
+  /* ---------- PANEL DEL ADMINISTRADOR ---------- */
+  async function renderAdmin(){
+    if(!isAdmin()){ renderGate(); return; }
+    if(typeof clearTimer === 'function') clearTimer();
+    document.getElementById('topbarSub').textContent = 'Gestionar accesos';
+    document.getElementById('screen').innerHTML = `
+      <div class="home" id="adminScreen">
+        <button class="back-link" data-action="openAccount">${icon('chevronLeft',16)} Mi cuenta</button>
+        <div class="section-label">Accesos a la app</div>
+        <p class="empty-hint">Las cuentas sin acceso no pueden usar la app, pero su progreso sigue guardado. Si les das acceso, lo recuperan todo.</p>
+        <div id="adminBox"><p class="empty-hint">Cargando…</p></div>
+      </div>`;
+    const box = document.getElementById('adminBox');
+    try{
+      await ensureFreshToken();
+      const users = await api('/rest/v1/rpc/admin_users', { method:'POST', body:{} });
+      const n = users.filter(u=>u.approved || u.is_admin).length;
+      if(!box.isConnected) return;
+      box.innerHTML = `<p class="admin-count">${n} con acceso · ${users.length - n} sin acceso</p><ul class="admin-list">` + users.map(u=>{
+        const ok = u.approved || u.is_admin;
+        const last = u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('es-ES') : '—';
+        return `<li class="admin-row ${ok ? 'ok' : 'off'}">
+          <div class="admin-info"><b>${escapeHtml(u.display_name || 'Sin nombre')}</b>
+            <span>${escapeHtml(u.email || '')}</span>
+            <span>${u.tests} tests · último acceso ${last}</span></div>
+          ${u.is_admin ? '<span class="admin-tag">Admin</span>'
+            : `<button class="${ok ? 'btn-secondary' : 'btn-primary'} admin-btn" data-action="adminSetAccess" data-args='${JSON.stringify([u.id, !ok])}'>${ok ? 'Quitar' : 'Dar acceso'}</button>`}
+        </li>`;
+      }).join('') + '</ul>';
+    }catch(e){
+      if(box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo cargar la lista. ${escapeHtml(friendlyError(e))}</p>`;
+    }
+  }
+  async function adminSet(id, ok){
+    try{
+      await ensureFreshToken();
+      await api('/rest/v1/rpc/admin_set_access', { method:'POST', body:{ p_id: id, p_ok: !!ok } });
+      toast(ok ? 'Acceso concedido' : 'Acceso retirado');
+    }catch(e){ toast('No se pudo cambiar: ' + friendlyError(e)); }
+    renderAdmin();
   }
 
   // Pantalla de bienvenida al abrir la app sin sesión
@@ -475,10 +562,9 @@ const Cloud = (function(){
         <div class="welcome-card">
           <div class="welcome-mascot mascot-idle">${mascotSVG('happy', 84)}</div>
           <h2 class="welcome-title">¡Bienvenido a TES Test!</h2>
-          <p class="welcome-text">Crea una cuenta para guardar tu progreso en la nube y verlo en cualquier móvil u ordenador, o entra como invitado y se guardará solo en este dispositivo.</p>
-          <button class="btn-primary" data-action="cloudView" data-args='["signup"]'>${icon('user',18)} Crear cuenta nueva</button>
-          <button class="btn-secondary acc-full" data-action="cloudView" data-args='["login"]'>Iniciar sesión</button>
-          <button class="acc-link welcome-guest" data-action="renderHome" data-guest="1">Continuar como invitado</button>
+          <p class="welcome-text">Inicia sesión con tu cuenta para usar la app. Si no tienes acceso, contacta con el administrador (${ADMIN_NAME}).</p>
+          <button class="btn-primary" data-action="cloudView" data-args='["login"]'>${icon('user',18)} Iniciar sesión</button>
+          <button class="btn-secondary acc-full" data-action="cloudView" data-args='["signup"]'>Crear cuenta nueva</button>
         </div>
       </div>`;
   }
@@ -486,7 +572,7 @@ const Cloud = (function(){
   return {
     // Carga la sesión guardada sin red (para pintar la portada ya sabiendo si hay cuenta)
     loadSession(){ session = parse(Store.getRaw(SESSION_KEY), null); },
-    init, renderAccount, renderRanking, recordScore, report,
+    init, renderAccount, renderRanking, recordScore, report, canUse, renderGate, renderAdmin, adminSet,
     setRankName(name){ const n = String(name || '').trim().slice(0, 24); if(n) updateProfile({ display_name: n }); },
     view(v){ accountView = v; accountMsg = null; renderAccount(); },
     syncNow(){ pull(); },
@@ -507,3 +593,5 @@ function cloudView(v){ Cloud.view(v); }
 function cloudSyncNow(){ Cloud.syncNow(); }
 function cloudLogout(){ Cloud.logout(); }
 function cloudSetRankName(name){ Cloud.setRankName(name); }
+function openAdmin(){ Cloud.renderAdmin(); window.scrollTo(0,0); }
+function adminSetAccess(id, ok){ Cloud.adminSet(id, ok); }

@@ -906,6 +906,7 @@ function dismissInstall(){ Store.setRaw(INSTALL_DISMISSED_KEY, '1'); renderHome(
 
 /* ---------------- RENDER: HOME ---------------- */
 function renderHome(){
+  if(!Cloud.canUse()){ Cloud.renderGate(); return; }
   if(saveProgressTimer) writeProgressNow();
   clearTimer();
   currentSubjectId = null;
@@ -1425,6 +1426,8 @@ const ACTIONS = {
   dismissInstall,
   cloudSetRankName,
   openAccount,
+  openAdmin,
+  adminSetAccess,
   cloudView,
   cloudSyncNow,
   cloudLogout,
@@ -1453,11 +1456,14 @@ const ACTIONS = {
   switchSubjectTab,
   toggleTheme
 };
+// Lo único que se puede hacer sin una cuenta con acceso
+const GATE_FREE = new Set(['cloudView', 'cloudLogout', 'cloudSyncNow', 'openAccount', 'toggleTheme', 'renderHome']);
 document.addEventListener('click', e=>{
   const el = e.target.closest('[data-action]');
   if(!el || el.disabled) return;
   const fn = ACTIONS[el.dataset.action];
   if(!fn) return;
+  if(!Cloud.canUse() && !GATE_FREE.has(el.dataset.action)){ Cloud.renderGate(); return; }
   let args = [];
   if(el.dataset.args){ try{ args = JSON.parse(el.dataset.args); }catch(err){ return; } }
   fn(...args);
@@ -1465,7 +1471,7 @@ document.addEventListener('click', e=>{
 // Campos que guardan al cambiar (fecha de examen, ranking...): reciben sus argumentos + el valor
 document.addEventListener('change', e=>{
   const el = e.target.closest('[data-change]');
-  if(!el) return;
+  if(!el || !Cloud.canUse()) return;
   const fn = ACTIONS[el.dataset.change];
   if(!fn) return;
   let args = [];
@@ -1476,7 +1482,7 @@ document.addEventListener('change', e=>{
 // Campos que actúan mientras se escribe (buscador)
 document.addEventListener('input', e=>{
   const el = e.target.closest('[data-input]');
-  if(!el) return;
+  if(!el || !Cloud.canUse()) return;
   const fn = ACTIONS[el.dataset.input];
   if(fn) fn(el.value);
 });

@@ -16,7 +16,7 @@ const THEME_KEY = 'tes_theme_v1';
 const FAILED_KEY = 'tes_failed_ids_v1';
 const SRS_KEY = 'tes_srs_v1';            // repaso espaciado: {id: {s: paso, d: cuándo toca}}
 const SRS_DAYS = [1, 3, 7];               // una fallada vuelve a los 1, 3 y 7 días
-const APP_VERSION = 'tes-test-v16';
+const APP_VERSION = 'tes-test-v17';
 const DONATE_URL = 'https://revolut.me/abraha6lvj';   // "Invítame a un café"       // igual que CACHE en sw.js: para avisar de versión nueva
 const MASTERY_KEY = 'tes_mastered_ids_v1';
 const STREAK_KEY = 'tes_qstreak_v1';   // preguntas acertadas una vez (a un acierto de quedar dominadas)
@@ -1036,6 +1036,7 @@ function renderHome(){
       <div class="section-label">Buscar una pregunta</div>
       <label class="search-box">${icon('search',17)}<input type="search" id="qSearch" placeholder="Escribe una palabra: glasgow, ambulancia..." data-input="searchQuestions" autocomplete="off" aria-label="Buscar una pregunta"></label>
       <div id="searchResults"></div>
+      ${coffeeCardHtml()}
 
       ` : homeTab === 'ranking' ? `
       <div id="rankingBox" class="ranking-box"><p class="empty-hint">Cargando ranking…</p></div>

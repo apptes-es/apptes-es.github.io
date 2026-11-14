@@ -7,6 +7,7 @@ const SUPABASE_KEY = 'sb_publishable_xvIkndYAPPAwVbIjMdk5ag_BeEYkTMs'; // clave 
 const SESSION_KEY = 'tes_session_v1';      // no se sincroniza
 const DEVICE_MODE_KEY = 'tes_device_mode_v1'; // 'user' si alguna vez entró con cuenta aquí, 'guest' si eligió invitado
 const LOCAL_STAMP_KEY = 'tes_local_updated_v1';
+const DATA_OWNER_KEY = 'tes_data_owner_v1';   // de qué cuenta son los datos guardados en este dispositivo
 const SYNC_KEYS = [
   'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
   'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1', 'tes_stats_v1',
@@ -65,17 +66,33 @@ const Cloud = (function(){
     return { access_token: d.access_token, refresh_token: d.refresh_token,
       expires_at: d.expires_at || (Math.floor(Date.now()/1000) + (d.expires_in || 3600)), user: d.user };
   }
+  // Si varias peticiones necesitan renovar la sesión a la vez, se renueva una sola vez
+  // (renovar dos veces con el mismo código puede hacer que Supabase cierre la sesión)
+  let refreshing = null;
   async function ensureFreshToken(){
     if(!session) return false;
     if(session.expires_at - 60 > Date.now()/1000) return true;
-    try{
-      const d = await api('/auth/v1/token?grant_type=refresh_token', { method:'POST', auth:false, body:{ refresh_token: session.refresh_token } });
-      saveSession(fromTokenResponse(d));
-      return true;
-    }catch(e){
-      if(e.status === 400 || e.status === 401){ saveSession(null); }
-      return false;
+    if(!refreshing){
+      refreshing = (async()=>{
+        try{
+          const d = await api('/auth/v1/token?grant_type=refresh_token', { method:'POST', auth:false, body:{ refresh_token: session.refresh_token } });
+          saveSession(fromTokenResponse(d));
+          return true;
+        }catch(e){
+          if(e.status === 400 || e.status === 401){ saveSession(null); }
+          return false;
+        }finally{ setTimeout(()=>{ refreshing = null; }, 0); }
+      })();
     }
+    return refreshing;
+  }
+  // Borra del dispositivo el progreso de la cuenta (al cerrar sesión o si entra otra cuenta),
+  // para que nunca se mezclen los datos de dos personas que usan el mismo móvil
+  function clearLocalData(){
+    applyingRemote = true;
+    SYNC_KEYS.concat([LOCAL_STAMP_KEY, SCORE_QUEUE_KEY, 'tes_duel_submit_v1', DATA_OWNER_KEY]).forEach(k=>Store.remove(k));
+    applyingRemote = false;
+    if(typeof onLocalDataCleared === 'function') onLocalDataCleared();
   }
   function displayName(){
     if(!session || !session.user) return '';
@@ -119,6 +136,9 @@ const Cloud = (function(){
     const wasOk = canUse();
     if(!(await checkAccess())){ setStatus('idle'); if(!document.getElementById('accountScreen') || accountView !== 'newpass') renderGate(); return; }
     if(!wasOk && !(document.getElementById('accountScreen') && accountView === 'newpass')) renderHome();
+    const owner = Store.getRaw(DATA_OWNER_KEY);
+    if(owner && owner !== session.user.id) clearLocalData();
+    Store.setRaw(DATA_OWNER_KEY, session.user.id);
     setStatus('syncing');
     try{
       const rows = await api('/rest/v1/user_data?select=data,updated_at&user_id=eq.' + session.user.id);
@@ -150,8 +170,8 @@ const Cloud = (function(){
   async function push(immediate){
     if(pushTimer){ clearTimeout(pushTimer); pushTimer = null; }
     if(!immediate){ pushTimer = setTimeout(()=>push(true), 2500); return; }
-    if(!canUse()) return;
-    if(!(await ensureFreshToken())) return;
+    if(!canUse()) return false;
+    if(!(await ensureFreshToken())) return false;
     setStatus('syncing');
     try{
       const stamp = Number(Store.getRaw(LOCAL_STAMP_KEY) || Date.now());
@@ -160,7 +180,8 @@ const Cloud = (function(){
         body:{ user_id: session.user.id, data:{ keys: localSnapshot(), stamp }, updated_at: new Date().toISOString() }
       });
       setStatus('ok');
-    }catch(e){ setStatus(navigator.onLine === false ? 'offline' : 'error'); }
+      return true;
+    }catch(e){ setStatus(navigator.onLine === false ? 'offline' : 'error'); return false; }
   }
   Store.onChange(key=>{
     if(applyingRemote || SYNC_KEYS.indexOf(key) === -1) return;
@@ -339,10 +360,15 @@ const Cloud = (function(){
       body:{ question_id: String(questionId).slice(0, 40), note: note ? String(note).slice(0, 500) : null } });
   }
   async function logout(){
-    if(pushTimer) await push(true);
+    // Antes de salir se sube todo lo pendiente; después se borra del dispositivo
+    let synced = false;
+    if(canUse()){ try{ await flushScores(); synced = await push(true); }catch(e){} }
     try{ await api('/auth/v1/logout', { method:'POST' }); }catch(e){}
     saveSession(null);
     access = null; Store.remove(ACCESS_KEY);
+    // Si no se pudo subir (sin internet), se deja en el dispositivo: se sube al volver a entrar con esa cuenta,
+    // y si entra otra cuenta se borra antes de mezclar nada (DATA_OWNER_KEY)
+    if(synced) clearLocalData();
     setStatus('idle');
   }
 
@@ -590,7 +616,7 @@ const Cloud = (function(){
       if(!fresh) throw new Error('network');
       return api('/rest/v1/rpc/' + name, { method:'POST', body: body || {} });
     },
-    async logout(){ await logout(); accountView = 'login'; accountMsg = { type:'ok', text:'Sesión cerrada. Tu progreso sigue guardado en este dispositivo.' }; renderAccount(); updateBadge(); },
+    async logout(){ await logout(); accountView = 'login'; accountMsg = { type:'ok', text:'Sesión cerrada. Tu progreso está guardado en tu cuenta.' }; renderAccount(); updateBadge(); },
     isLogged(){ return !!session; },
     isAdmin, userId(){ return session && session.user ? session.user.id : null; }
   };

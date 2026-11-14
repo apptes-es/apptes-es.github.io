@@ -859,3 +859,9 @@ async function challengeRival(uid, name){
 }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') refreshDuelInbox(); });
 setInterval(()=>{ if(document.visibilityState === 'visible') refreshDuelInbox(); }, 90000);
+
+// Al cerrar sesión (o entrar otra cuenta) se olvida lo que había en memoria de la cuenta anterior
+function onLocalDataCleared(){
+  duelInbox = []; rivalsCache = null; feedCache = null;
+  paintDuelBadges();
+}

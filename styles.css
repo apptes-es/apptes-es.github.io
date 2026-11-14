@@ -1220,3 +1220,40 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .rival-name{flex:1; min-width:0;}
 .rival-name b{display:block; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .rival-name span{font-size:12px; color:var(--text-muted);}
+
+/* --- repaso espaciado --- */
+.srs-card{display:flex; align-items:center; gap:12px; background:var(--card-bg); border:1px solid var(--border); border-left:5px solid var(--primary); border-radius:14px; padding:12px 14px; margin:10px 0 6px; animation:popIn .4s ease both;}
+.srs-icon{flex-shrink:0; width:40px; height:40px; border-radius:50%; background:var(--tap-bg); color:var(--primary); display:flex; align-items:center; justify-content:center;}
+.srs-icon svg{vertical-align:0 !important;}
+.srs-body{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
+.srs-body b{font-size:15px; line-height:1.25; color:var(--text);}
+
+/* --- avisos push --- */
+.push-card{display:flex; align-items:center; gap:12px; background:var(--card-bg); border:1.5px dashed var(--primary); border-radius:14px; padding:12px 14px; margin-bottom:12px;}
+.push-card > div{flex-shrink:0; width:38px; height:38px; border-radius:50%; background:var(--tap-bg); color:var(--primary); display:flex; align-items:center; justify-content:center;}
+.push-card > div svg{vertical-align:0 !important;}
+.push-card p{flex:1; margin:0; font-size:13px; line-height:1.35; color:var(--text-muted);}
+.push-card p b{display:block; font-size:15px; color:var(--text);}
+.push-card.muted{border-style:solid; border-color:var(--border);}
+
+/* --- aviso de versión nueva --- */
+.update-banner{position:fixed; left:0; right:0; margin:0 auto; top:calc(10px + env(safe-area-inset-top, 0px)); width:fit-content; max-width:calc(100vw - 24px); display:flex; align-items:center; gap:12px; background:var(--navy); color:#fff; padding:8px 8px 8px 14px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.3); z-index:9999; font-size:14px; font-weight:600; animation:feedbackIn .2s ease;}
+.update-banner .btn-mini{background:var(--hivis, #F5C518); color:var(--navy);}
+
+/* --- ranking: semana / de siempre --- */
+.rank-views{display:flex; gap:6px; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:4px; margin:0 0 10px;}
+.rank-views button{flex:1; border:0; background:none; padding:8px; border-radius:9px; font-family:inherit; font-weight:700; font-size:14px; color:var(--text-muted); cursor:pointer;}
+.rank-views button.on{background:var(--navy); color:#fff;}
+
+/* --- lista de rivales: buscador --- */
+.rival-search{margin-bottom:8px;}
+.rival-search[hidden]{display:none;}
+
+/* --- avisos de error (administrador) --- */
+.report-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+.report-row{background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:11px 12px;}
+.report-q span{display:block; font-size:12px; color:var(--text-muted);}
+.report-q b{display:block; font-size:14px; line-height:1.35; margin:2px 0;}
+.report-q small{display:block; font-size:12px; color:var(--ok-text);}
+.report-note{margin:8px 0; font-size:14px; color:var(--text);}
+.report-foot{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:var(--text-muted);}

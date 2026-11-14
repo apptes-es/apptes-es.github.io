@@ -41,7 +41,12 @@ const Bank = (function(){
   function applyCached(){
     let cached = null;
     try{ cached = JSON.parse(Store.getRaw(BANK_CACHE_KEY)); }catch(e){}
-    if(cached && apply(cached)){ source = 'copia del dispositivo'; version = Store.getRaw(BANK_VERSION_KEY) || null; return true; }
+    // Solo se usa la copia del dispositivo si es más nueva que el banco que trae el código
+    // (si la app se actualizó con preguntas nuevas, manda el código aunque no haya internet)
+    const codeAt = (typeof BANK_BUILT_AT !== 'undefined') ? BANK_BUILT_AT : 0;
+    const cachedVersion = Store.getRaw(BANK_VERSION_KEY) || null;
+    if(cached && cachedVersion && cachedVersion === version) return false;   // es el mismo banco: no hace falta
+    if(cached && (cached.savedAt || 0) > codeAt && apply(cached)){ source = 'copia del dispositivo'; version = cachedVersion; return true; }
     return false;
   }
 

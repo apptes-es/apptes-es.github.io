@@ -11,7 +11,7 @@ const DATA_OWNER_KEY = 'tes_data_owner_v1';   // de qué cuenta son los datos gu
 const SYNC_KEYS = [
   'tes_test_history_v1', 'tes_failed_ids_v1', 'tes_mastered_ids_v1',
   'tes_seen_v1', 'tes_recent_tests_v1', 'tes_test_progress_v1', 'tes_stats_v1',
-  'tes_qstreak_v1', 'tes_fav_v1'
+  'tes_qstreak_v1', 'tes_fav_v1', 'tes_srs_v1'
 ];
 const SCORE_QUEUE_KEY = 'tes_score_queue_v1'; // puntos pendientes de subir al ranking
 const ACCESS_KEY = 'tes_access_v1';          // {uid, ok, admin}: si la cuenta tiene acceso (no se sincroniza)
@@ -162,6 +162,7 @@ const Cloud = (function(){
       if(typeof onRemoteApplied === 'function') onRemoteApplied();
       if(typeof announceProgress === 'function') announceProgress();
       if(typeof refreshDuelInbox === 'function') refreshDuelInbox();
+      if(typeof afterSync === 'function') afterSync();
     }catch(e){
       applyingRemote = false;
       setStatus(navigator.onLine === false ? 'offline' : 'error');
@@ -232,6 +233,7 @@ const Cloud = (function(){
     return f(mon) + ' – ' + f(sun);
   }
   let rankingProfile = null;
+  let rankView = 'week';   // week: puntos de esta semana · all: experiencia total
   async function renderRanking(box){
     if(!box) return;
     if(!session){
@@ -256,7 +258,11 @@ const Cloud = (function(){
       rankingProfile = (prof && prof[0]) || { display_name: displayName() };
       if(!box.isConnected) return;
       const me = rows.find(r=>r.is_me);
-      const list = rows.length ? rows.map(r=>{
+      const allTime = rankView === 'all' && rows.length && rows[0].xp != null;
+      const shown = allTime
+        ? rows.slice().sort((a,b)=>(b.xp||0) - (a.xp||0)).map((r,i)=>Object.assign({}, r, { rank: i + 1, points: r.xp || 0 }))
+        : rows;
+      const list = shown.length ? shown.map(r=>{
         // Número de posición dentro de un círculo con el color y la medalla del rango de cada uno
         const top = (r.rank <= 3 && r.points > 0) ? ' top' + r.rank : '';
         const medal = (r.xp != null && typeof rankFor === 'function')
@@ -264,7 +270,7 @@ const Cloud = (function(){
           : (top ? `<span class="rank-medal m${r.rank}">${r.rank}</span>` : `<span class="rank-pos">${r.rank}</span>`);
         const streak = r.streak > 0 ? ` <span class="rank-streak" title="Racha de ${r.streak} ${r.streak == 1 ? 'día' : 'días'}">${icon('flame',12)}${r.streak}</span>` : '';
         return `<li class="${r.is_me ? 'me' : ''}">${medal}<span class="rank-name">${escapeHtml(r.display_name)}${r.is_me ? ' <em>(tú)</em>' : ''}${streak}</span>
-          <span class="rank-tests">${r.tests} ${r.tests == 1 ? 'test' : 'tests'}</span><b class="rank-pts">${r.points}</b></li>`;
+          <span class="rank-tests">${allTime ? 'XP' : r.tests + ' ' + (r.tests == 1 ? 'test' : 'tests')}</span><b class="rank-pts">${r.points}</b></li>`;
       }).join('') : '';
       box.innerHTML = `
         <div class="rank-head">
@@ -276,6 +282,10 @@ const Cloud = (function(){
           <label class="rank-namefield" for="rankName">Nombre visible
             <input type="text" id="rankName" maxlength="24" value="${escapeHtml(rankingProfile.display_name || '')}" data-change="cloudSetRankName">
           </label>
+        </div>
+        <div class="rank-views" role="tablist">
+          <button type="button" class="${allTime ? '' : 'on'}" data-action="cloudRankView" data-args='["week"]'>Esta semana</button>
+          <button type="button" class="${allTime ? 'on' : ''}" data-action="cloudRankView" data-args='["all"]'>De siempre</button>
         </div>
         ${list ? `<ol class="rank-list">${list}</ol>` : `<p class="empty-hint">Todavía no hay nadie en el ranking.</p>`}
         <p class="rank-rules">1 punto por cada acierto (las preguntas que ya dominas valen la mitad) · +10 por aprobar un simulacro de 20 preguntas o más. Solo cuentan los tests hechos con la sesión iniciada. ${icon('flame',12)} = días seguidos estudiando.</p>`;
@@ -360,6 +370,7 @@ const Cloud = (function(){
       body:{ question_id: String(questionId).slice(0, 40), note: note ? String(note).slice(0, 500) : null } });
   }
   async function logout(){
+    if(typeof beforeLogout === 'function'){ try{ await beforeLogout(); }catch(e){} }
     // Antes de salir se sube todo lo pendiente; después se borra del dispositivo
     let synced = false;
     if(canUse()){ try{ await flushScores(); synced = await push(true); }catch(e){} }
@@ -420,6 +431,7 @@ const Cloud = (function(){
         </div>
         ${msgHtml()}
         <div id="duelInboxBox">${typeof duelInboxHtml === 'function' ? duelInboxHtml() : ''}</div>
+        ${typeof pushCardHtml === 'function' ? pushCardHtml() : ''}
         <p class="empty-hint">Tu historial, falladas, logros y el test a medias se guardan en tu cuenta. Entra con el mismo email en otro móvil u ordenador y lo tendrás todo.</p>
         <button class="btn-primary" data-action="cloudSyncNow">${icon('route',18)} Sincronizar ahora</button>
         ${isAdmin() ? `<button class="btn-secondary acc-full" data-action="openAdmin">${icon('shield',18)} Gestionar accesos</button>` : ''}
@@ -556,7 +568,10 @@ const Cloud = (function(){
         <div class="section-label">Accesos a la app</div>
         <p class="empty-hint">Las cuentas sin acceso no pueden usar la app, pero su progreso sigue guardado. Si les das acceso, lo recuperan todo.</p>
         <div id="adminBox"><p class="empty-hint">Cargando…</p></div>
+        <div class="section-label">Avisos de error en preguntas</div>
+        <div id="reportsBox"><p class="empty-hint">Cargando…</p></div>
       </div>`;
+    renderReports();
     const box = document.getElementById('adminBox');
     try{
       await ensureFreshToken();
@@ -577,6 +592,36 @@ const Cloud = (function(){
     }catch(e){
       if(box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudo cargar la lista. ${escapeHtml(friendlyError(e))}</p>`;
     }
+  }
+  async function renderReports(){
+    const box = document.getElementById('reportsBox');
+    if(!box) return;
+    try{
+      await ensureFreshToken();
+      const reps = await api('/rest/v1/rpc/admin_reports', { method:'POST', body:{} });
+      if(!box.isConnected) return;
+      if(!reps.length){ box.innerHTML = '<p class="empty-hint">No hay avisos pendientes. 👌</p>'; return; }
+      box.innerHTML = '<ul class="report-list">' + reps.map(r=>{
+        const q = typeof findQuestionById === 'function' ? findQuestionById(r.question_id) : null;
+        const subj = q ? getSubject(q.subject).short : '';
+        const right = q ? q.options[q.correct] : '';
+        return `<li class="report-row">
+          <div class="report-q"><span>${escapeHtml(r.question_id)}${subj ? ' · ' + escapeHtml(subj) : ''}</span>
+            <b>${escapeHtml(q ? q.text : 'Pregunta que ya no está en el banco')}</b>
+            ${q ? `<small>Respuesta marcada como correcta: ${escapeHtml(right)}</small>` : ''}</div>
+          <p class="report-note">${r.note ? '«' + escapeHtml(r.note) + '»' : '<em>Sin comentario</em>'}</p>
+          <div class="report-foot"><span>${escapeHtml(r.reporter)} · ${new Date(r.created_at).toLocaleDateString('es-ES')}</span>
+            <button class="btn-mini" data-action="adminResolveReport" data-args='${JSON.stringify([r.id])}'>Revisado</button></div>
+        </li>`;
+      }).join('') + '</ul>';
+    }catch(e){
+      if(box.isConnected) box.innerHTML = `<p class="empty-hint">No se pudieron cargar los avisos. ${escapeHtml(friendlyError(e))}</p>`;
+    }
+  }
+  async function resolveReport(id){
+    try{ await ensureFreshToken(); await api('/rest/v1/rpc/admin_resolve_report', { method:'POST', body:{ p_id: id } }); toast('Aviso marcado como revisado'); }
+    catch(e){ toast('No se pudo marcar: ' + friendlyError(e)); }
+    renderReports();
   }
   async function adminSet(id, ok){
     try{
@@ -605,7 +650,9 @@ const Cloud = (function(){
   return {
     // Carga la sesión guardada sin red (para pintar la portada ya sabiendo si hay cuenta)
     loadSession(){ session = parse(Store.getRaw(SESSION_KEY), null); },
-    init, renderAccount, renderRanking, recordScore, report, canUse, renderGate, renderAdmin, adminSet,
+    init, renderAccount, renderRanking, recordScore, report, canUse, renderGate, renderAdmin, adminSet, resolveReport,
+    setRankView(v){ rankView = v === 'all' ? 'all' : 'week'; renderRanking(document.getElementById('rankingBox')); },
+    async freshToken(){ return (await ensureFreshToken()) && session ? session.access_token : null; },
     setRankName(name){ const n = String(name || '').trim().slice(0, 24); if(n) updateProfile({ display_name: n }); },
     view(v){ accountView = v; accountMsg = null; renderAccount(); },
     syncNow(){ pull(); },
@@ -629,3 +676,5 @@ function cloudLogout(){ Cloud.logout(); }
 function cloudSetRankName(name){ Cloud.setRankName(name); }
 function openAdmin(){ Cloud.renderAdmin(); window.scrollTo(0,0); }
 function adminSetAccess(id, ok){ Cloud.adminSet(id, ok); }
+function adminResolveReport(id){ Cloud.resolveReport(id); }
+function cloudRankView(v){ Cloud.setRankView(v); }

@@ -14,6 +14,9 @@ const HISTORY_KEY = 'tes_test_history_v1';
 const PROGRESS_KEY = 'tes_test_progress_v1';
 const THEME_KEY = 'tes_theme_v1';
 const FAILED_KEY = 'tes_failed_ids_v1';
+const SRS_KEY = 'tes_srs_v1';            // repaso espaciado: {id: {s: paso, d: cuándo toca}}
+const SRS_DAYS = [1, 3, 7];               // una fallada vuelve a los 1, 3 y 7 días
+const APP_VERSION = 'tes-test-v15';       // igual que CACHE en sw.js: para avisar de versión nueva
 const MASTERY_KEY = 'tes_mastered_ids_v1';
 const STREAK_KEY = 'tes_qstreak_v1';   // preguntas acertadas una vez (a un acierto de quedar dominadas)
 const FAV_KEY = 'tes_fav_v1';          // preguntas marcadas como favoritas
@@ -305,6 +308,54 @@ function updateFailedBank(){
   saveFailedIds(Array.from(failed));
 }
 
+/* ---------------- REPASO ESPACIADO ----------------
+   Cada fallada vuelve a salir al día siguiente; si se acierta ese día, a los 3 días; luego a los 7.
+   Acertada en el tercer repaso, sale del plan. Fallarla en cualquier momento la devuelve al principio. */
+function dayStartTs(offsetDays){ const d = todayStart(); d.setDate(d.getDate() + (offsetDays || 0)); return d.getTime(); }
+function loadSrs(){
+  let srs = safeGetJSON(SRS_KEY, null);
+  if(!srs){
+    // Primera vez: las falladas que ya tenía cada uno entran en el plan para hoy
+    srs = {};
+    safeGetJSON(FAILED_KEY, []).forEach(id=>{ srs[id] = { s: 0, d: dayStartTs(0) }; });
+    safeSetJSON(SRS_KEY, srs);
+  }
+  return srs;
+}
+function updateSrs(){
+  const srs = Object.assign({}, loadSrs());
+  const now = Date.now();
+  currentTest.questions.forEach((q,i)=>{
+    const a = currentTest.answers[i];
+    if(a === null) return;
+    if(a !== q.correct){ srs[q.id] = { s: 0, d: dayStartTs(SRS_DAYS[0]) }; return; }
+    const it = srs[q.id];
+    if(!it || it.d > now) return;               // acertada antes de que le toque: no cambia
+    const next = (it.s || 0) + 1;
+    if(next >= SRS_DAYS.length) delete srs[q.id];
+    else srs[q.id] = { s: next, d: dayStartTs(SRS_DAYS[next]) };
+  });
+  safeSetJSON(SRS_KEY, srs);
+}
+function srsDueIds(){
+  const srs = loadSrs(), now = Date.now();
+  return Object.keys(srs).filter(id=>srs[id].d <= now && findQuestionById(id));
+}
+function startSrsTest(){
+  const ids = srsDueIds();
+  if(!ids.length){ renderHome(); return; }
+  startReviewTest(shuffle(ids).slice(0, 20), 'srs', null);
+}
+function srsCardHtml(){
+  const n = srsDueIds().length;
+  if(!n) return '';
+  return `<div class="srs-card">
+    <div class="srs-icon">${icon('clock',22)}</div>
+    <div class="srs-body"><span class="ne-eyebrow">Repaso de hoy</span><b>${n} ${n === 1 ? 'pregunta' : 'preguntas'} que fallaste</b></div>
+    <button class="btn-mini" data-action="startSrsTest">Repasar</button>
+  </div>`;
+}
+
 /* ---------------- FAVORITAS ---------------- */
 function loadFavIds(){ return safeGetJSON(FAV_KEY, []).filter(id=>findQuestionById(id)); }
 function favIdsOf(subjectId){ return loadFavIds().filter(id=>!subjectId || findQuestionById(id).subject === subjectId); }
@@ -522,6 +573,7 @@ function modeLabel(test){
   if(test.mode === 'subject') return s.short + ' · Simulacro';
   if(test.mode === 'exam') return s.short + ' · ' + test.label;
   if(test.mode === 'review') return 'Repaso de falladas';
+  if(test.mode === 'srs') return 'Repaso del día';
   if(test.mode === 'failed') return 'Falladas guardadas' + (s ? ' · ' + s.short : '');
   if(test.mode === 'unverified') return 'Preguntas no verificadas';
   if(test.mode === 'fav') return 'Favoritas' + (s ? ' · ' + s.short : '');
@@ -532,6 +584,7 @@ function historyTag(h){
   const s = h.subject ? getSubject(h.subject) : null;
   if(h.mode === 'subject') return 'Simulacro · ' + s.short;
   if(h.mode === 'exam') return s.short + ' · ' + h.label;
+  if(h.mode === 'srs') return 'Repaso del día';
   if(h.mode === 'review' || h.mode === 'failed') return 'Repaso' + (s ? ' · ' + s.short : '');
   if(h.mode === 'unverified') return 'Revisión';
   if(h.mode === 'fav') return 'Favoritas' + (s ? ' · ' + s.short : '');
@@ -660,6 +713,7 @@ function repeatTest(){
   else if(t.mode === 'review') startReviewTest(t.questions.map(q=>q.id), 'review', t.subject);
   else if(t.mode === 'unverified') startUnverifiedTest(t.subject);
   else if(t.mode === 'failed') startFailedTest(t.subject);
+  else if(t.mode === 'srs') startSrsTest();
   else if(t.mode === 'fav') startFavTest(t.subject);
   else if(t.mode === 'duel') openDuels();
   else renderHome();
@@ -972,6 +1026,7 @@ function renderHome(){
       </div>
 
       ${homeTab === 'asignaturas' ? `
+      ${srsCardHtml()}
       ${nextExamCardHtml()}
       ${weakPointHtml()}
       <div class="section-label">Elige asignatura</div>
@@ -1281,6 +1336,7 @@ function finishTest(timeUp){
   if(total > 0) Cloud.recordScore({ subject: currentTest.subject, mode: currentTest.mode, correct: score, total,
     points: fresh + Math.floor(known / 2) + bonus });
   updateFailedBank();
+  updateSrs();
   updateMasteredIds();
   clearProgress();
 
@@ -1429,6 +1485,13 @@ const ACTIONS = {
   cloudSetRankName,
   openAccount,
   openAdmin,
+  adminResolveReport,
+  cloudRankView,
+  rematchDuel,
+  filterRivals,
+  enablePush,
+  startSrsTest,
+  reloadApp,
   reactFeed,
   showRankInfo,
   challengeRival,
@@ -1509,6 +1572,28 @@ document.addEventListener('keydown', e=>{
   else if(k === 'enter' && tag !== 'BUTTON'){ e.preventDefault(); if(last) finishTest(); else nextQuestion(); }
 });
 
+/* ---------------- VERSIÓN NUEVA Y ENLACES DESDE NOTIFICACIONES ---------------- */
+function showUpdateBanner(){
+  if(document.getElementById('updateBanner')) return;
+  const el = document.createElement('div');
+  el.id = 'updateBanner'; el.className = 'update-banner'; el.setAttribute('role', 'status');
+  el.innerHTML = `<span>${icon('star',16)} Hay una versión nueva de la app</span><button class="btn-mini" data-action="reloadApp">Actualizar</button>`;
+  document.body.appendChild(el);
+}
+function reloadApp(){
+  if(currentTest && saveProgressTimer) writeProgressNow();
+  location.reload();
+}
+// ?tab=duelos (al tocar una notificación de duelo con la app cerrada)
+function captureTabFromUrl(){
+  try{
+    const p = new URLSearchParams(location.search);
+    const t = p.get('tab');
+    if(t && ['asignaturas', 'progreso', 'ranking', 'duelos'].includes(t)) homeTab = t;
+    if(t){ p.delete('tab'); const q = p.toString(); history.replaceState(null, '', location.pathname + (q ? '?' + q : '')); }
+  }catch(e){}
+}
+
 /* ---------------- INIT ---------------- */
 (function init(){
   // Descarta un test a medias guardado con un formato antiguo (sin asignatura)
@@ -1518,6 +1603,7 @@ document.addEventListener('keydown', e=>{
   applyThemeIcon();
   Cloud.loadSession();
   captureDuelFromUrl();
+  captureTabFromUrl();
   renderHome();
   // Cuenta opcional en la nube: al traer datos, refresca la portada si el usuario está en ella
   Cloud.init(()=>{ if(document.querySelector('.home-tabs') && !document.getElementById('accountScreen')) renderHome(); });
@@ -1525,6 +1611,16 @@ document.addEventListener('keydown', e=>{
   Bank.refresh(onBankUpdated);
   // App instalable y sin conexión
   if('serviceWorker' in navigator && location.protocol === 'https:'){
-    window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').then(reg=>{
+        // Al volver a la app se mira si hay versión nueva
+        document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') reg.update().catch(()=>{}); });
+      }).catch(()=>{});
+    });
+    navigator.serviceWorker.addEventListener('message', e=>{
+      const m = e.data || {};
+      if(m.type === 'sw-version' && m.v && m.v !== APP_VERSION) showUpdateBanner();
+      if(m.type === 'open-duels' && Cloud.canUse()){ homeTab = 'duelos'; renderHome(); refreshDuelInbox(); }
+    });
   }
 })();

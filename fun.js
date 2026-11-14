@@ -443,6 +443,7 @@ function renderDuelsTab(box){
         <div>${icon('award',20)} <b>¡Te han retado!</b><span>Duelo ${escapeHtml(pending)}</span></div>
         <button class="btn-mini" data-action="acceptPendingDuel">Aceptar reto</button>
       </div>` : ''}
+    ${typeof pushCardHtml === 'function' ? pushCardHtml() : ''}
     <div id="duelInboxBox">${duelInboxHtml()}</div>
     <div class="duel-new">
       <div class="section-label">Nuevo duelo</div>
@@ -451,6 +452,7 @@ function renderDuelsTab(box){
         <select id="duelSubject">${subs.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select>
       </label>
       <div class="duel-field-label">¿A quién retas?</div>
+      <label class="search-box rival-search" id="rivalSearch" hidden>${icon('search',16)}<input type="search" placeholder="Buscar compañero…" data-input="filterRivals" autocomplete="off" aria-label="Buscar compañero"></label>
       <div id="rivalList" class="rival-list"><p class="empty-hint">Cargando compañeros…</p></div>
       <button class="acc-link" data-action="createDuel" ${subs.length?'':'disabled'}>O crear un duelo con enlace para compartir</button>
     </div>
@@ -500,6 +502,7 @@ function duelRowHtml(s){
     status = `Esperando a ${rival}`; cls = 'wait';
   } else {
     status = out === 'win' ? '¡Ganado!' : out === 'lose' ? 'Perdido' : 'Empate'; cls = out;
+    if(s.their_id) action = `<button class="btn-mini ghost" data-action="rematchDuel" data-args="${argsAttr([s.their_id, rival, s.subject])}">Revancha</button>`;
   }
   const score = `${s.my_score == null ? '–' : s.my_score} : ${s.their_score == null ? '–' : s.their_score}`;
   return `
@@ -617,6 +620,7 @@ async function submitAndShowDuel(test, score){
         <p class="empty-hint">Manda este enlace a tu compañero. Código del duelo: <b class="duel-code">${escapeHtml(state.id)}</b></p>
         <button class="btn-primary" data-action="shareDuelWhatsApp" data-args="${argsAttr([state.id, subj.short])}">${icon('chat',18)} Enviar por WhatsApp</button>
         <button class="btn-secondary acc-full" id="copyDuelBtn" data-action="copyDuelLink" data-args="${argsAttr([state.id])}">Copiar enlace</button>` : ''}
+      ${state.their_id && state.their_score != null ? `<button class="btn-primary" data-action="rematchDuel" data-args="${argsAttr([state.their_id, rival, state.subject])}">${icon('award',18)} Revancha</button>` : ''}
     </div>`;
   if(out === 'win' && noteDuelWin(state)){
     burstConfetti(160); vibrate([30,40,30]);
@@ -830,10 +834,18 @@ async function loadRivals(){
   try{ rivalsCache = (await Cloud.rpc('weekly_ranking_v3', {})).filter(r=>!r.is_me && r.uid); paintRivals(el); }
   catch(e){ if(!rivalsCache && el.isConnected) el.innerHTML = `<p class="empty-hint">No se pudo cargar la lista de compañeros.</p>`; }
 }
+let rivalFilter = '';
+function filterRivals(value){ rivalFilter = String(value || ''); paintRivals(document.getElementById('rivalList')); }
 function paintRivals(el){
   if(!el || !el.isConnected) return;
   if(!rivalsCache.length){ el.innerHTML = '<p class="empty-hint">Todavía no hay compañeros con acceso.</p>'; return; }
-  el.innerHTML = rivalsCache.map(r=>{
+  // Los más activos esta semana salen primero (la lista ya viene ordenada por puntos); con buscador si son muchos
+  const f = normText(rivalFilter);
+  const list = f ? rivalsCache.filter(r=>normText(r.display_name).includes(f)) : rivalsCache;
+  const search = document.getElementById('rivalSearch');
+  if(search) search.hidden = rivalsCache.length < 6;
+  if(!list.length){ el.innerHTML = '<p class="empty-hint">Nadie con ese nombre.</p>'; return; }
+  el.innerHTML = list.map(r=>{
     const ri = rankFor(r.xp || 0);
     return `<div class="rival-row">
       <span class="pc-rank rank-${ri.idx} rival-orb">${icon(ri.rank.icon, 15)}</span>
@@ -842,14 +854,16 @@ function paintRivals(el){
     </div>`;
   }).join('');
 }
-async function challengeRival(uid, name){
-  if(challenging) return;
+function challengeRival(uid, name){
   const sel = document.getElementById('duelSubject');
-  const subjectId = sel && sel.value;
-  if(!subjectId) return;
+  if(sel && sel.value) challengeUser(uid, name, sel.value);
+}
+function rematchDuel(uid, name, subjectId){ challengeUser(uid, name, subjectId); }
+async function challengeUser(uid, name, subjectId){
+  if(challenging || !uid || !subjectId) return;
   const pool = shuffle(dedupe(questionsOf(subjectId).filter(q=>!q.u))).slice(0, DUEL_SIZE);
   challenging = true;
-  document.querySelectorAll('[data-action="challengeRival"]').forEach(b=>{ b.disabled = true; });
+  document.querySelectorAll('[data-action="challengeRival"],[data-action="rematchDuel"]').forEach(b=>{ b.disabled = true; });
   try{
     const state = await Cloud.rpc('challenge_duel', { p_target: uid, p_subject: subjectId, p_ids: pool.map(q=>q.id) });
     toast('Reto a ' + name + ': ¡te toca jugar primero!');
@@ -858,10 +872,123 @@ async function challengeRival(uid, name){
   finally{ challenging = false; }
 }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') refreshDuelInbox(); });
-setInterval(()=>{ if(document.visibilityState === 'visible') refreshDuelInbox(); }, 90000);
+// Respaldo por si se corta el tiempo real: una comprobación cada 5 minutos
+setInterval(()=>{ if(document.visibilityState === 'visible') refreshDuelInbox(); }, 300000);
 
 // Al cerrar sesión (o entrar otra cuenta) se olvida lo que había en memoria de la cuenta anterior
 function onLocalDataCleared(){
   duelInbox = []; rivalsCache = null; feedCache = null;
+  stopRealtime();
   paintDuelBadges();
 }
+
+/* ---------- NOTIFICACIONES PUSH (avisos en el móvil aunque la app esté cerrada) ---------- */
+const VAPID_PUBLIC = 'BO_AsF1FV5LNH6Q1iIlbE9cmAvUQjfqDczHdsdIT8Rs1zUlIBVyHHefCB7GwT1GQpmj1N-blE0jU3zoEXkovUIY';
+const PUSH_ON_KEY = 'tes_push_on_v1';
+function pushSupported(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function b64urlToBytes(s){
+  const pad = '='.repeat((4 - s.length % 4) % 4);
+  const raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, c=>c.charCodeAt(0));
+}
+async function pushRegistration(){
+  if(!pushSupported()) return null;
+  try{ return (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.ready); }catch(e){ return null; }
+}
+async function savePushSubscription(sub){
+  const j = sub.toJSON();
+  await Cloud.rpc('save_push_subscription', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+}
+async function enablePush(){
+  if(!pushSupported()){ toast('Este móvil no permite avisos. En iPhone, instala antes la app en la pantalla de inicio.'); return; }
+  try{
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ toast('Sin permiso no podemos avisarte. Puedes activarlo en los ajustes del navegador.'); repaintPushCards(); return; }
+    const reg = await pushRegistration();
+    if(!reg) throw new Error('sin service worker');
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(VAPID_PUBLIC) }));
+    await savePushSubscription(sub);
+    Store.setRaw(PUSH_ON_KEY, '1');
+    toast('¡Avisos activados! Te llegarán los retos al móvil.');
+  }catch(e){ toast('No se pudieron activar los avisos.'); }
+  repaintPushCards();
+}
+// Tras entrar o sincronizar: si este móvil ya tiene avisos, se vinculan a la cuenta que ha entrado
+async function syncPushSubscription(){
+  if(!pushSupported() || Notification.permission !== 'granted' || !Cloud.canUse()) return;
+  const reg = await pushRegistration();
+  if(!reg) return;
+  try{ const sub = await reg.pushManager.getSubscription(); if(sub){ await savePushSubscription(sub); Store.setRaw(PUSH_ON_KEY, '1'); } }catch(e){}
+}
+async function beforeLogout(){
+  stopRealtime();
+  const reg = await pushRegistration();
+  const sub = reg && await reg.pushManager.getSubscription().catch(()=>null);
+  if(sub){
+    try{ await Cloud.rpc('delete_push_subscription', { p_endpoint: sub.endpoint }); }catch(e){}
+    try{ await sub.unsubscribe(); }catch(e){}
+  }
+  Store.remove(PUSH_ON_KEY);
+}
+function pushCardHtml(){
+  if(!Cloud.canUse()) return '';
+  if(!pushSupported()){
+    return (isIOS() && !isStandalone())
+      ? `<div class="push-card"><div>${icon('chat',20)}</div><p>Para recibir los retos en el móvil, instala la app: botón <b>Compartir</b> → <b>Añadir a pantalla de inicio</b>.</p></div>` : '';
+  }
+  if(Notification.permission === 'granted' && Store.getRaw(PUSH_ON_KEY)) return '';
+  if(Notification.permission === 'denied') return `<div class="push-card muted"><div>${icon('chat',20)}</div><p>Los avisos están bloqueados en este navegador. Puedes permitirlos en sus ajustes.</p></div>`;
+  return `<div class="push-card"><div>${icon('chat',20)}</div><p><b>Avisos de duelos</b>Que te llegue al móvil cuando te reten o jueguen tu duelo.</p><button class="btn-mini" data-action="enablePush">Activar</button></div>`;
+}
+function repaintPushCards(){
+  document.querySelectorAll('.push-card').forEach(el=>{ const html = pushCardHtml(); if(html) el.outerHTML = html; else el.remove(); });
+}
+
+/* ---------- TIEMPO REAL: los duelos llegan al momento con la app abierta ---------- */
+let rtSocket = null, rtHeartbeat = null, rtRef = 1, rtRetry = null;
+async function startRealtime(){
+  if(rtSocket || !Cloud.canUse() || !('WebSocket' in window)) return;
+  const uid = Cloud.userId();
+  const token = await Cloud.freshToken();
+  if(!uid || !token || rtSocket) return;
+  const ws = new WebSocket(SUPABASE_URL.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(SUPABASE_KEY) + '&vsn=1.0.0');
+  rtSocket = ws;
+  const topic = 'realtime:duels-' + uid;
+  const send = m=>{ if(ws.readyState === 1) ws.send(JSON.stringify(Object.assign({ ref: String(rtRef++) }, m))); };
+  ws.onopen = ()=>{
+    send({ topic, event: 'phx_join', join_ref: '1', payload: { access_token: token, config: { broadcast: { self: false }, presence: { key: '' },
+      postgres_changes: [
+        { event: '*', schema: 'public', table: 'duels', filter: 'opponent=eq.' + uid },
+        { event: 'UPDATE', schema: 'public', table: 'duels', filter: 'creator=eq.' + uid }
+      ] } } });
+    let beats = 0;
+    rtHeartbeat = setInterval(async ()=>{
+      send({ topic: 'phoenix', event: 'heartbeat', payload: {} });
+      // Cada ~10 minutos se renueva el permiso del canal (la sesión caduca cada hora)
+      if(++beats % 24 === 0){ const t = await Cloud.freshToken(); if(t) send({ topic, event: 'access_token', payload: { access_token: t } }); }
+    }, 25000);
+  };
+  ws.onmessage = e=>{
+    let m; try{ m = JSON.parse(e.data); }catch(_){ return; }
+    if(m.event === 'postgres_changes'){
+      refreshDuelInbox();
+      if(document.getElementById('duelList')) loadDuelList();
+    }
+  };
+  ws.onclose = ()=>{
+    clearInterval(rtHeartbeat); rtHeartbeat = null;
+    if(rtSocket !== ws) return;
+    rtSocket = null;
+    clearTimeout(rtRetry);
+    rtRetry = setTimeout(()=>{ if(document.visibilityState === 'visible') startRealtime(); }, 15000);
+  };
+}
+function stopRealtime(){
+  clearTimeout(rtRetry);
+  const ws = rtSocket; rtSocket = null;
+  clearInterval(rtHeartbeat); rtHeartbeat = null;
+  if(ws){ try{ ws.close(); }catch(e){} }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') startRealtime(); });
+// Se llama al terminar cada sincronización con la nube
+function afterSync(){ syncPushSubscription(); startRealtime(); }

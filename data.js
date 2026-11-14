@@ -12,6 +12,7 @@
 // ============================================================
 
 const BANK_VERSION = '5e4f4a0db194569c8423e0da5f57984e';
+const BANK_BUILT_AT = 1794312000000; // cuándo se generó esta copia (10/11/2026): la del dispositivo solo manda si es más nueva
 
 const SUBJECTS = [
   {"id":"logistica","name":"Logística sanitaria en emergencias","short":"Logística","icon":"truck","color":"#E26A1B","exam_date":"2026-12-12"},

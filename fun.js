@@ -736,7 +736,28 @@ async function adminDeleteFeed(id){
   renderFeed(document.getElementById('feedBox'));
 }
 
-// Al tocar el círculo de un compañero en el ranking: su rango y su experiencia
+// Al tocar el círculo de un compañero en el ranking: un bocadillo al lado con su rango y su experiencia
+let lastTapEl = null;
+document.addEventListener('click', e=>{ lastTapEl = e.target.closest('[data-action]'); }, true);
+document.addEventListener('click', e=>{ if(!e.target.closest('.rank-orb')) document.querySelectorAll('.rank-pop').forEach(x=>x.remove()); });
+window.addEventListener('scroll', ()=>document.querySelectorAll('.rank-pop').forEach(x=>x.remove()), { passive: true });
 function showRankInfo(name, rankName, xp){
-  toast(name + ' · ' + rankName + ' · ' + Number(xp || 0).toLocaleString('es-ES') + ' XP');
+  document.querySelectorAll('.rank-pop').forEach(x=>x.remove());
+  const el = lastTapEl;
+  const ri = rankFor(Number(xp) || 0);
+  const pop = document.createElement('div');
+  pop.className = 'rank-pop'; pop.setAttribute('role', 'status');
+  pop.innerHTML = `<div class="pc-rank rank-${ri.idx}">${icon(ri.rank.icon, 16)}</div>
+    <div><b>${escapeHtml(name)}</b><span>${escapeHtml(rankName)}</span><small>${Number(xp || 0).toLocaleString('es-ES')} XP</small></div>`;
+  document.body.appendChild(pop);
+  if(el && el.isConnected){
+    const r = el.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    const left = Math.min(r.right + 12, window.innerWidth - w - 8);
+    pop.style.left = (left + window.scrollX) + 'px';
+    pop.style.top = (r.top + r.height / 2 - h / 2 + window.scrollY) + 'px';
+  } else {
+    pop.classList.add('center');
+  }
+  clearTimeout(showRankInfo.t);
+  showRankInfo.t = setTimeout(()=>pop.remove(), 3500);
 }

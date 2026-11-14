@@ -1201,3 +1201,11 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .rank-list li .rank-orb{margin-right:4px;}
 .rank-orb{border:0; padding:0; cursor:pointer; font-family:inherit; -webkit-tap-highlight-color:transparent;}
 .rank-orb:active{transform:scale(.92);}
+.rank-pop{position:absolute; z-index:9998; display:flex; align-items:center; gap:10px; background:var(--navy); color:#fff; padding:9px 13px 9px 9px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.28); animation:feedbackIn .15s ease; max-width:calc(100vw - 16px);}
+.rank-pop::before{content:''; position:absolute; left:-6px; top:50%; margin-top:-6px; border:6px solid transparent; border-left:0; border-right-color:var(--navy);}
+.rank-pop.center{position:fixed; left:50%; top:40%; transform:translateX(-50%);}
+.rank-pop.center::before{display:none;}
+.rank-pop .pc-rank{width:34px; height:34px;}
+.rank-pop b{display:block; font-size:14px;}
+.rank-pop span{display:block; font-size:13px; opacity:.9;}
+.rank-pop small{display:block; font-size:12px; opacity:.75; font-variant-numeric:tabular-nums;}

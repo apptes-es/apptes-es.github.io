@@ -16,7 +16,8 @@ const THEME_KEY = 'tes_theme_v1';
 const FAILED_KEY = 'tes_failed_ids_v1';
 const SRS_KEY = 'tes_srs_v1';            // repaso espaciado: {id: {s: paso, d: cuándo toca}}
 const SRS_DAYS = [1, 3, 7];               // una fallada vuelve a los 1, 3 y 7 días
-const APP_VERSION = 'tes-test-v15';       // igual que CACHE en sw.js: para avisar de versión nueva
+const APP_VERSION = 'tes-test-v16';
+const DONATE_URL = 'https://revolut.me/abraha6lvj';   // "Invítame a un café"       // igual que CACHE en sw.js: para avisar de versión nueva
 const MASTERY_KEY = 'tes_mastered_ids_v1';
 const STREAK_KEY = 'tes_qstreak_v1';   // preguntas acertadas una vez (a un acierto de quedar dominadas)
 const FAV_KEY = 'tes_fav_v1';          // preguntas marcadas como favoritas
@@ -1063,6 +1064,7 @@ function renderHome(){
 
       <div class="section-label">Últimos resultados</div>
       ${historyListHtml(history, 'Todavía no has hecho ningún test. ¡Primera salida cuando quieras!')}
+      ${coffeeCardHtml()}
       `}
     </div>
     <footer class="note">Aprobado orientativo: 50% de aciertos. Contrasta siempre con tus apuntes y el material oficial del ciclo.</footer>
@@ -1571,6 +1573,16 @@ document.addEventListener('keydown', e=>{
   else if(k === 'arrowleft'){ e.preventDefault(); prevQuestion(); }
   else if(k === 'enter' && tag !== 'BUTTON'){ e.preventDefault(); if(last) finishTest(); else nextQuestion(); }
 });
+
+/* ---------------- INVÍTAME A UN CAFÉ ---------------- */
+// Donación voluntaria para el mantenimiento de la app (Revolut). Se abre fuera de la app.
+function coffeeCardHtml(compact){
+  return `<a class="coffee-card${compact ? ' compact' : ''}" href="${DONATE_URL}" target="_blank" rel="noopener">
+    <span class="coffee-icon" aria-hidden="true">☕</span>
+    <span class="coffee-text"><b>Invítame a un café</b>${compact ? '' : '<span>La app es gratis. Si te ayuda a estudiar y quieres aportar algo para mantenerla, se agradece mucho.</span>'}</span>
+    <span class="coffee-go">Revolut</span>
+  </a>`;
+}
 
 /* ---------------- VERSIÓN NUEVA Y ENLACES DESDE NOTIFICACIONES ---------------- */
 function showUpdateBanner(){

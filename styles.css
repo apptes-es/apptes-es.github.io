@@ -1257,3 +1257,13 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .report-q small{display:block; font-size:12px; color:var(--ok-text);}
 .report-note{margin:8px 0; font-size:14px; color:var(--text);}
 .report-foot{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:var(--text-muted);}
+
+/* --- invítame a un café --- */
+.coffee-card{display:flex; align-items:center; gap:12px; margin:22px 0 6px; padding:13px 14px; border-radius:14px; text-decoration:none; color:var(--text); background:linear-gradient(135deg, rgba(245,197,24,.18), rgba(224,138,0,.12)); border:1.5px solid rgba(224,138,0,.45);}
+.coffee-card:active{transform:scale(.98);}
+.coffee-icon{font-size:28px; line-height:1; flex-shrink:0;}
+.coffee-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+.coffee-text b{font-size:15px;}
+.coffee-text span{font-size:13px; line-height:1.35; color:var(--text-muted);}
+.coffee-go{flex-shrink:0; font-size:13px; font-weight:800; padding:7px 11px; border-radius:10px; background:var(--navy); color:#fff;}
+.coffee-card.compact{margin:12px 0;}

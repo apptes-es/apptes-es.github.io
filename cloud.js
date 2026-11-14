@@ -435,6 +435,7 @@ const Cloud = (function(){
         <p class="empty-hint">Tu historial, falladas, logros y el test a medias se guardan en tu cuenta. Entra con el mismo email en otro móvil u ordenador y lo tendrás todo.</p>
         <button class="btn-primary" data-action="cloudSyncNow">${icon('route',18)} Sincronizar ahora</button>
         ${isAdmin() ? `<button class="btn-secondary acc-full" data-action="openAdmin">${icon('shield',18)} Gestionar accesos</button>` : ''}
+        ${typeof coffeeCardHtml === 'function' ? coffeeCardHtml() : ''}
         <button class="btn-secondary acc-full" data-action="cloudLogout">Cerrar sesión</button>`;
     } else if(accountView === 'signup'){
       inner = `

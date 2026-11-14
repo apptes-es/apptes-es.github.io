@@ -983,6 +983,7 @@ function renderHome(){
 
       ` : homeTab === 'ranking' ? `
       <div id="rankingBox" class="ranking-box"><p class="empty-hint">Cargando ranking…</p></div>
+      <div id="feedBox" class="feed-box"></div>
       ` : homeTab === 'duelos' ? `
       <div id="duelsBox" class="duels-box"></div>
       ` : `
@@ -1011,7 +1012,7 @@ function renderHome(){
     </div>
     <footer class="note">Aprobado orientativo: 50% de aciertos. Contrasta siempre con tus apuntes y el material oficial del ciclo.</footer>
   `;
-  if(homeTab === 'ranking') Cloud.renderRanking(document.getElementById('rankingBox'));
+  if(homeTab === 'ranking'){ Cloud.renderRanking(document.getElementById('rankingBox')); renderFeed(document.getElementById('feedBox')); }
   if(homeTab === 'duelos') renderDuelsTab(document.getElementById('duelsBox'));
 }
 function switchHomeTab(tab){ homeTab = tab; renderHome(); }
@@ -1287,6 +1288,7 @@ function finishTest(timeUp){
   const isNewRecord = countsForRecord(entry) && prevBest !== null && newPercent > prevBest;
   const newlyUnlocked = getAchievements(loadHistory()).filter(a=>a.earned && !achvBefore.includes(a.id));
   persistBadges();
+  announceProgress();
 
   renderResults(score, total, !!timeUp, isNewRecord, newlyUnlocked, xpInfo);
   if(currentTest.mode === 'duel' && currentTest.duel) submitAndShowDuel(currentTest, score);
@@ -1427,6 +1429,8 @@ const ACTIONS = {
   cloudSetRankName,
   openAccount,
   openAdmin,
+  reactFeed,
+  adminDeleteFeed,
   adminSetAccess,
   cloudView,
   cloudSyncNow,

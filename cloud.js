@@ -140,6 +140,7 @@ const Cloud = (function(){
       if(same) setStatus('ok'); else await push(true);
       flushScores();
       if(typeof onRemoteApplied === 'function') onRemoteApplied();
+      if(typeof announceProgress === 'function') announceProgress();
     }catch(e){
       applyingRemote = false;
       setStatus(navigator.onLine === false ? 'offline' : 'error');
@@ -584,7 +585,8 @@ const Cloud = (function(){
       return api('/rest/v1/rpc/' + name, { method:'POST', body: body || {} });
     },
     async logout(){ await logout(); accountView = 'login'; accountMsg = { type:'ok', text:'Sesión cerrada. Tu progreso sigue guardado en este dispositivo.' }; renderAccount(); updateBadge(); },
-    isLogged(){ return !!session; }
+    isLogged(){ return !!session; },
+    isAdmin, userId(){ return session && session.user ? session.user.id : null; }
   };
 })();
 

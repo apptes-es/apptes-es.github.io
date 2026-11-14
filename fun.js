@@ -613,7 +613,7 @@ async function submitAndShowDuel(test, score){
     burstConfetti(160); vibrate([30,40,30]);
     const st = loadStats();
     const earnedNow = getAchievements(loadHistory()).filter(a=>a.earned && !st.badges.includes(a.id));
-    if(earnedNow.length){ persistBadges(); box.insertAdjacentHTML('beforeend', earnedNow.map(a=>`<div class="celebrate-banner pop">${icon(a.icon||'award',17)} Logro desbloqueado: ${escapeHtml(a.title)}</div>`).join('')); }
+    if(earnedNow.length){ persistBadges(); announceProgress(); box.insertAdjacentHTML('beforeend', earnedNow.map(a=>`<div class="celebrate-banner pop">${icon(a.icon||'award',17)} Logro desbloqueado: ${escapeHtml(a.title)}</div>`).join('')); }
   }
 }
 function persistBadges(){
@@ -633,4 +633,105 @@ function captureDuelFromUrl(){
       history.replaceState(null, '', location.pathname);
     }
   }catch(e){}
+}
+
+/* ---------- MURO DE LOGROS DE LA CLASE ---------- */
+// Al subir de rango, desbloquear un logro o alcanzar una racha, se publica en el muro y los compañeros reaccionan.
+const FEED_BASE_KEY = 'tes_feed_base_v1';   // lo ya anunciado por cuenta (no se sincroniza; el servidor evita duplicados)
+const FEED_EMOJIS = ['👏', '🔥', '💪', '❤️'];
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+let feedCache = null;
+function feedNow(){
+  const st = loadStats();
+  return { rankIdx: rankFor(st.xp).idx, streak: streakInfo(st.days).current,
+    badges: getAchievements(loadHistory()).filter(a=>a.earned).map(a=>a.id) };
+}
+function announceProgress(){
+  const uid = Cloud.userId();
+  if(!uid || !Cloud.canUse()) return;
+  const all = Store.get(FEED_BASE_KEY, {}) || {};
+  const base = all[uid], now = feedNow();
+  all[uid] = { rankIdx: Math.max(now.rankIdx, base ? base.rankIdx : 0), streak: now.streak,
+    badges: Array.from(new Set((base ? base.badges : []).concat(now.badges))) };
+  Store.set(FEED_BASE_KEY, all);
+  if(!base) return;   // primera vez en este dispositivo: se apunta dónde está, sin publicar lo antiguo
+  const events = [];
+  if(now.rankIdx > base.rankIdx){ const r = RANKS[now.rankIdx]; events.push(['rank', r.name, r.name, r.icon]); }
+  const ach = getAchievements(loadHistory());
+  now.badges.filter(id=>!base.badges.includes(id)).forEach(id=>{
+    const a = ach.find(x=>x.id === id);
+    if(a) events.push(['badge', id, a.title, a.icon || 'award']);
+  });
+  STREAK_MILESTONES.forEach(m=>{ if(now.streak >= m && base.streak < m) events.push(['streak', m + '@' + dayKey(Date.now()), String(m), 'flame']); });
+  events.forEach(([kind, key, label, ic])=>{
+    Cloud.rpc('post_feed_event', { p_kind: kind, p_key: key, p_label: label, p_icon: ic }).catch(()=>{});
+  });
+}
+function timeAgo(iso){
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if(s < 60) return 'ahora mismo';
+  if(s < 3600) return 'hace ' + Math.floor(s/60) + ' min';
+  if(s < 86400) return 'hace ' + Math.floor(s/3600) + ' h';
+  const d = Math.floor(s/86400);
+  return d === 1 ? 'ayer' : 'hace ' + d + ' días';
+}
+function feedText(e){
+  const L = escapeHtml(e.label);
+  if(e.kind === 'rank') return e.is_me ? `Has llegado a <b>${L}</b>` : `ha llegado a <b>${L}</b>`;
+  if(e.kind === 'streak') return e.is_me ? `Llevas <b>${L} días</b> seguidos estudiando` : `lleva <b>${L} días</b> seguidos estudiando`;
+  return e.is_me ? `Has conseguido el logro <b>«${L}»</b>` : `ha conseguido el logro <b>«${L}»</b>`;
+}
+function feedItemHtml(e){
+  const reacts = FEED_EMOJIS.map(em=>{
+    const n = (e.reactions && e.reactions[em]) || 0;
+    const on = (e.mine || []).includes(em);
+    if(e.is_me) return n ? `<span class="react-chip">${em} <span>${n}</span></span>` : '';
+    return `<button type="button" class="react-btn ${on ? 'on' : ''}" data-action="reactFeed" data-args="${argsAttr([e.id, em])}" aria-pressed="${on}">${em}${n ? ` <span>${n}</span>` : ''}</button>`;
+  }).join('');
+  const who = e.who && e.who.length
+    ? `<div class="feed-who">${icon('heart',11)} ${escapeHtml(e.who.slice(0,4).join(', '))}${e.who.length > 4 ? ' y ' + (e.who.length - 4) + ' más' : ''}</div>` : '';
+  const del = Cloud.isAdmin() ? `<button type="button" class="feed-del" data-action="adminDeleteFeed" data-args="${argsAttr([e.id])}" aria-label="Borrar del muro">×</button>` : '';
+  return `<li class="feed-item ${e.is_me ? 'me' : ''} k-${escapeHtml(e.kind)}">
+    <div class="feed-icon">${icon(e.icon || 'award', 18)}</div>
+    <div class="feed-body">
+      <p>${e.is_me ? '' : `<b>${escapeHtml(e.name)}</b> `}${feedText(e)}</p>
+      <small>${timeAgo(e.created_at)}</small>
+      ${reacts ? `<div class="feed-reacts">${reacts}</div>` : (e.is_me ? '<div class="feed-wait">Aún sin reacciones</div>' : '')}
+      ${who}
+    </div>${del}
+  </li>`;
+}
+function paintFeed(box){
+  if(!box || !box.isConnected) return;
+  box.innerHTML = `<div class="section-label">Muro de la clase</div>` + (feedCache && feedCache.length
+    ? `<ul class="feed-list">${feedCache.map(feedItemHtml).join('')}</ul>`
+    : `<p class="empty-hint">Aquí aparecerán las subidas de rango, rachas y logros de la clase. ¡Reacciona para animar a tus compañeros!</p>`);
+}
+async function renderFeed(box){
+  if(!box) return;
+  if(feedCache) paintFeed(box);
+  else box.innerHTML = `<div class="section-label">Muro de la clase</div><p class="empty-hint">Cargando…</p>`;
+  try{ feedCache = await Cloud.rpc('class_feed'); paintFeed(box); }
+  catch(e){ if(!feedCache && box.isConnected) box.innerHTML = `<div class="section-label">Muro de la clase</div><p class="empty-hint">No se pudo cargar el muro.</p>`; }
+}
+async function reactFeed(id, emoji){
+  const e = feedCache && feedCache.find(x=>x.id === id);
+  if(!e || e.is_me) return;
+  // Se pinta al momento y luego se confirma con el servidor
+  e.mine = e.mine || []; e.reactions = e.reactions || {};
+  const on = e.mine.includes(emoji);
+  e.mine = on ? e.mine.filter(x=>x !== emoji) : e.mine.concat([emoji]);
+  e.reactions[emoji] = Math.max(0, (e.reactions[emoji] || 0) + (on ? -1 : 1));
+  if(!on) vibrate(15);
+  const box = document.getElementById('feedBox');
+  paintFeed(box);
+  try{ await Cloud.rpc('toggle_reaction', { p_event: id, p_emoji: emoji }); }
+  catch(err){ toast('No se pudo guardar la reacción'); }
+  renderFeed(box);
+}
+async function adminDeleteFeed(id){
+  if(!confirm('¿Borrar esta publicación del muro?')) return;
+  try{ await Cloud.rpc('admin_delete_feed_event', { p_event: id }); feedCache = (feedCache || []).filter(x=>x.id !== id); }
+  catch(e){ toast('No se pudo borrar'); }
+  renderFeed(document.getElementById('feedBox'));
 }

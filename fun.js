@@ -380,7 +380,9 @@ const DUEL_ERRORS = {
   too_many: 'Has creado muchos duelos hoy. Prueba mañana.',
   not_logged: 'Necesitas iniciar sesión para jugar duelos.',
   bad_questions: 'No se pudo preparar el duelo.',
-  not_participant: 'No participas en este duelo.'
+  not_participant: 'No participas en este duelo.',
+  self: 'No puedes retarte a ti mismo.',
+  no_target: 'Ese compañero ya no tiene acceso a la app.'
 };
 function duelError(e){
   const m = String((e && e.message) || '').trim();
@@ -441,13 +443,16 @@ function renderDuelsTab(box){
         <div>${icon('award',20)} <b>¡Te han retado!</b><span>Duelo ${escapeHtml(pending)}</span></div>
         <button class="btn-mini" data-action="acceptPendingDuel">Aceptar reto</button>
       </div>` : ''}
+    <div id="duelInboxBox">${duelInboxHtml()}</div>
     <div class="duel-new">
       <div class="section-label">Nuevo duelo</div>
-      <p class="empty-hint">Juegas ${DUEL_SIZE} preguntas y luego mandas el enlace a tu rival. Gana quien acierte más; si empatáis, el más rápido.</p>
+      <p class="empty-hint">Elige asignatura y a quién retas. Juegas tus ${DUEL_SIZE} preguntas y a tu rival le llega el reto en la app. Gana quien acierte más; si empatáis, el más rápido.</p>
       <label class="duel-field">Asignatura
         <select id="duelSubject">${subs.map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select>
       </label>
-      <button class="btn-primary" data-action="createDuel" ${subs.length?'':'disabled'}>${icon('award',18)} Crear duelo y jugar</button>
+      <div class="duel-field-label">¿A quién retas?</div>
+      <div id="rivalList" class="rival-list"><p class="empty-hint">Cargando compañeros…</p></div>
+      <button class="acc-link" data-action="createDuel" ${subs.length?'':'disabled'}>O crear un duelo con enlace para compartir</button>
     </div>
     <div class="duel-join">
       <div class="section-label">Unirme con un código</div>
@@ -460,6 +465,7 @@ function renderDuelsTab(box){
     <div id="duelList"><p class="empty-hint">Cargando duelos…</p></div>`;
   duelMsg = null;
   loadDuelList();
+  loadRivals();
 }
 async function loadDuelList(){
   const el = document.getElementById('duelList');
@@ -469,6 +475,7 @@ async function loadDuelList(){
     const list = await Cloud.rpc('my_duels', {});
     if(!el.isConnected) return;
     (list || []).forEach(noteDuelWin);
+    setDuelInbox(list);
     if(!list || !list.length){ el.innerHTML = '<p class="empty-hint">Todavía no has jugado ningún duelo. ¡Reta a alguien!</p>'; return; }
     el.innerHTML = '<div class="duel-list">' + list.map(duelRowHtml).join('') + '</div>';
   }catch(e){
@@ -595,7 +602,9 @@ async function submitAndShowDuel(test, score){
   if(out === 'win') head = `<b class="duel-verdict win">${icon('award',20)} ¡Has ganado el duelo!</b>`;
   else if(out === 'lose') head = `<b class="duel-verdict lose">${escapeHtml(rival)} gana esta vez</b>`;
   else if(out === 'tie') head = `<b class="duel-verdict tie">¡Empate total!</b>`;
-  else head = `<b class="duel-verdict wait">${state.has_opponent ? 'Esperando a que juegue ' + escapeHtml(rival) : 'Ahora reta a alguien'}</b>`;
+  else head = `<b class="duel-verdict wait">${state.has_opponent ? 'Esperando a que juegue ' + escapeHtml(rival) : 'Ahora reta a alguien'}</b>`
+    + (state.has_opponent && state.their_score == null ? `<p class="empty-hint">A ${escapeHtml(rival)} le ha llegado el reto en la app.</p>` : '');
+  refreshDuelInbox();
   box.innerHTML = `
     <div class="duel-card">
       ${head}
@@ -761,3 +770,92 @@ function showRankInfo(name, rankName, xp){
   clearTimeout(showRankInfo.t);
   showRankInfo.t = setTimeout(()=>pop.remove(), 3500);
 }
+
+/* ---------- RETOS DIRECTOS Y AVISOS DE DUELO ---------- */
+// Se reta a un compañero desde la lista de Duelos y le llega el aviso en su perfil, sin enlaces ni WhatsApp.
+const DUEL_SEEN_KEY = 'tes_duel_seen_v1';
+let duelInbox = [];
+let rivalsCache = null;
+let challenging = false;
+function isIncomingDuel(s){
+  return s.role === 'opponent' && s.my_score == null && !s.expired && s.their_score != null
+    && !pendingDuelSubmits().some(x=>x.id === s.id);
+}
+function setDuelInbox(list){
+  duelInbox = (list || []).filter(isIncomingDuel);
+  const seen = new Set(Store.get(DUEL_SEEN_KEY, []) || []);
+  const fresh = duelInbox.filter(s=>!seen.has(s.id));
+  if(fresh.length){
+    toast(fresh.length === 1 ? `${fresh[0].their_name || 'Un compañero'} te ha retado a un duelo` : `Tienes ${fresh.length} duelos nuevos`);
+    vibrate([20, 40, 20]);
+    Store.set(DUEL_SEEN_KEY, Array.from(seen).concat(fresh.map(s=>s.id)).slice(-100));
+  }
+  paintDuelBadges();
+}
+async function refreshDuelInbox(){
+  if(!Cloud.canUse()) return;
+  try{ setDuelInbox(await Cloud.rpc('my_duels', {})); }catch(e){}
+}
+function paintDuelBadges(){
+  const n = duelInbox.length;
+  const btn = document.getElementById('accountBtn');
+  if(btn){
+    let b = btn.querySelector('.notif-badge');
+    if(n){ if(!b){ b = document.createElement('span'); b.className = 'notif-badge'; btn.appendChild(b); } b.textContent = n > 9 ? '9+' : String(n); }
+    else if(b) b.remove();
+  }
+  const tab = document.querySelector('.home-tab[data-args=\'["duelos"]\']');
+  if(tab){
+    const has = !!(n || Store.getRaw(PENDING_DUEL_KEY)), dot = tab.querySelector('.tab-dot');
+    if(has && !dot) tab.insertAdjacentHTML('beforeend', ' <i class="tab-dot"></i>');
+    if(!has && dot) dot.remove();
+  }
+  const box = document.getElementById('duelInboxBox');
+  if(box) box.innerHTML = duelInboxHtml();
+}
+function duelInboxHtml(){
+  if(!duelInbox.length) return '';
+  return `<div class="section-label">Duelos que te han enviado</div>` + duelInbox.map(s=>{
+    const subj = getSubject(s.subject);
+    return `<div class="duel-invite">
+      <div>${icon('award',20)} <b>${escapeHtml(s.their_name || 'Un compañero')} te reta</b><span>${escapeHtml(subj.short)} · sacó ${s.their_score}/${s.total}</span></div>
+      <button class="btn-mini" data-action="playDuel" data-args="${argsAttr([s.id])}">Jugar</button>
+    </div>`;
+  }).join('');
+}
+async function loadRivals(){
+  const el = document.getElementById('rivalList');
+  if(!el) return;
+  if(rivalsCache) paintRivals(el);
+  try{ rivalsCache = (await Cloud.rpc('weekly_ranking_v3', {})).filter(r=>!r.is_me && r.uid); paintRivals(el); }
+  catch(e){ if(!rivalsCache && el.isConnected) el.innerHTML = `<p class="empty-hint">No se pudo cargar la lista de compañeros.</p>`; }
+}
+function paintRivals(el){
+  if(!el || !el.isConnected) return;
+  if(!rivalsCache.length){ el.innerHTML = '<p class="empty-hint">Todavía no hay compañeros con acceso.</p>'; return; }
+  el.innerHTML = rivalsCache.map(r=>{
+    const ri = rankFor(r.xp || 0);
+    return `<div class="rival-row">
+      <span class="pc-rank rank-${ri.idx} rival-orb">${icon(ri.rank.icon, 15)}</span>
+      <div class="rival-name"><b>${escapeHtml(r.display_name)}</b><span>${escapeHtml(ri.rank.name)}</span></div>
+      <button class="btn-mini" data-action="challengeRival" data-args="${argsAttr([r.uid, r.display_name])}">Retar</button>
+    </div>`;
+  }).join('');
+}
+async function challengeRival(uid, name){
+  if(challenging) return;
+  const sel = document.getElementById('duelSubject');
+  const subjectId = sel && sel.value;
+  if(!subjectId) return;
+  const pool = shuffle(dedupe(questionsOf(subjectId).filter(q=>!q.u))).slice(0, DUEL_SIZE);
+  challenging = true;
+  document.querySelectorAll('[data-action="challengeRival"]').forEach(b=>{ b.disabled = true; });
+  try{
+    const state = await Cloud.rpc('challenge_duel', { p_target: uid, p_subject: subjectId, p_ids: pool.map(q=>q.id) });
+    toast('Reto a ' + name + ': ¡te toca jugar primero!');
+    startDuelTest(state);
+  }catch(e){ duelMsg = { type:'error', text: duelError(e) }; homeTab = 'duelos'; renderHome(); }
+  finally{ challenging = false; }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') refreshDuelInbox(); });
+setInterval(()=>{ if(document.visibilityState === 'visible') refreshDuelInbox(); }, 90000);

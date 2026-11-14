@@ -1209,3 +1209,14 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .rank-pop b{display:block; font-size:14px;}
 .rank-pop span{display:block; font-size:13px; opacity:.9;}
 .rank-pop small{display:block; font-size:12px; opacity:.75; font-variant-numeric:tabular-nums;}
+
+/* --- retos directos y avisos de duelo --- */
+.account-btn{position:relative;}
+.notif-badge{position:absolute; top:-3px; right:-3px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--siren, #E0312B); color:#fff; font-size:11px; font-weight:800; line-height:18px; text-align:center; box-shadow:0 0 0 2px var(--navy); animation:popIn .3s ease both;}
+.duel-field-label{font-size:14px; font-weight:600; margin:14px 0 8px; color:var(--text);}
+.rival-list{display:flex; flex-direction:column; gap:6px; margin-bottom:6px;}
+.rival-row{display:flex; align-items:center; gap:10px; background:var(--card-bg); border:1px solid var(--border); border-radius:11px; padding:8px 10px;}
+.rival-orb{width:32px; height:32px;}
+.rival-name{flex:1; min-width:0;}
+.rival-name b{display:block; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.rival-name span{font-size:12px; color:var(--text-muted);}

@@ -141,6 +141,7 @@ const Cloud = (function(){
       flushScores();
       if(typeof onRemoteApplied === 'function') onRemoteApplied();
       if(typeof announceProgress === 'function') announceProgress();
+      if(typeof refreshDuelInbox === 'function') refreshDuelInbox();
     }catch(e){
       applyingRemote = false;
       setStatus(navigator.onLine === false ? 'offline' : 'error');
@@ -392,6 +393,7 @@ const Cloud = (function(){
           <div class="acc-status ${status}">${escapeHtml(statusText())}</div>
         </div>
         ${msgHtml()}
+        <div id="duelInboxBox">${typeof duelInboxHtml === 'function' ? duelInboxHtml() : ''}</div>
         <p class="empty-hint">Tu historial, falladas, logros y el test a medias se guardan en tu cuenta. Entra con el mismo email en otro móvil u ordenador y lo tendrás todo.</p>
         <button class="btn-primary" data-action="cloudSyncNow">${icon('route',18)} Sincronizar ahora</button>
         ${isAdmin() ? `<button class="btn-secondary acc-full" data-action="openAdmin">${icon('shield',18)} Gestionar accesos</button>` : ''}

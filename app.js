@@ -968,7 +968,7 @@ function renderHome(){
         <button class="home-tab ${homeTab==='asignaturas'?'active':''}" data-action="switchHomeTab" data-args='["asignaturas"]'>Asignaturas</button>
         <button class="home-tab ${homeTab==='progreso'?'active':''}" data-action="switchHomeTab" data-args='["progreso"]'>Progreso</button>
         <button class="home-tab ${homeTab==='ranking'?'active':''}" data-action="switchHomeTab" data-args='["ranking"]'>Ranking</button>
-        <button class="home-tab ${homeTab==='duelos'?'active':''}" data-action="switchHomeTab" data-args='["duelos"]'>Duelos${Store.getRaw(PENDING_DUEL_KEY) ? ' <i class="tab-dot"></i>' : ''}</button>
+        <button class="home-tab ${homeTab==='duelos'?'active':''}" data-action="switchHomeTab" data-args='["duelos"]'>Duelos${(Store.getRaw(PENDING_DUEL_KEY) || duelInbox.length) ? ' <i class="tab-dot"></i>' : ''}</button>
       </div>
 
       ${homeTab === 'asignaturas' ? `
@@ -1431,6 +1431,7 @@ const ACTIONS = {
   openAdmin,
   reactFeed,
   showRankInfo,
+  challengeRival,
   adminDeleteFeed,
   adminSetAccess,
   cloudView,

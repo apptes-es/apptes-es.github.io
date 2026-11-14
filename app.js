@@ -1430,6 +1430,7 @@ const ACTIONS = {
   openAccount,
   openAdmin,
   reactFeed,
+  showRankInfo,
   adminDeleteFeed,
   adminSetAccess,
   cloudView,

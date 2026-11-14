@@ -1199,3 +1199,5 @@ footer.note{text-align:center; font-size:12px; color:var(--text-muted); padding:
 .rank-orb-icon{position:absolute; right:-5px; bottom:-4px; width:17px; height:17px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--card-bg); color:var(--text); border:1px solid var(--border); text-shadow:none;}
 .rank-orb-icon svg{vertical-align:0 !important;}
 .rank-list li .rank-orb{margin-right:4px;}
+.rank-orb{border:0; padding:0; cursor:pointer; font-family:inherit; -webkit-tap-highlight-color:transparent;}
+.rank-orb:active{transform:scale(.92);}

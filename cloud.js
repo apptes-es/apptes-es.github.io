@@ -238,7 +238,7 @@ const Cloud = (function(){
         // Número de posición dentro de un círculo con el color y la medalla del rango de cada uno
         const top = (r.rank <= 3 && r.points > 0) ? ' top' + r.rank : '';
         const medal = (r.xp != null && typeof rankFor === 'function')
-          ? (ri => `<span class="rank-orb pc-rank rank-${ri.idx}${top}" title="${escapeHtml(ri.rank.name)}">${r.rank}<i class="rank-orb-icon">${icon(ri.rank.icon, 10)}</i></span>`)(rankFor(r.xp))
+          ? (ri => `<button type="button" class="rank-orb pc-rank rank-${ri.idx}${top}" data-action="showRankInfo" data-args="${escapeHtml(JSON.stringify([r.display_name, ri.rank.name, r.xp]))}" aria-label="${escapeHtml(r.display_name + ': ' + ri.rank.name)}">${r.rank}<i class="rank-orb-icon">${icon(ri.rank.icon, 10)}</i></button>`)(rankFor(r.xp))
           : (top ? `<span class="rank-medal m${r.rank}">${r.rank}</span>` : `<span class="rank-pos">${r.rank}</span>`);
         const streak = r.streak > 0 ? ` <span class="rank-streak" title="Racha de ${r.streak} ${r.streak == 1 ? 'día' : 'días'}">${icon('flame',12)}${r.streak}</span>` : '';
         return `<li class="${r.is_me ? 'me' : ''}">${medal}<span class="rank-name">${escapeHtml(r.display_name)}${r.is_me ? ' <em>(tú)</em>' : ''}${streak}</span>

@@ -735,3 +735,8 @@ async function adminDeleteFeed(id){
   catch(e){ toast('No se pudo borrar'); }
   renderFeed(document.getElementById('feedBox'));
 }
+
+// Al tocar el círculo de un compañero en el ranking: su rango y su experiencia
+function showRankInfo(name, rankName, xp){
+  toast(name + ' · ' + rankName + ' · ' + Number(xp || 0).toLocaleString('es-ES') + ' XP');
+}
